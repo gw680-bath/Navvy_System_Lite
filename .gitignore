@@ -1,4 +1,5 @@
 .pio/
+.venv/
 .vscode/
 .DS_Store
 *.log
