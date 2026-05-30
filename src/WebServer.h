@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include <WebServer.h>
 #include <WebSocketsServer.h>
+#include "C:/Users/Giles Woodland/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src/WebServer.h"
 
 #include "Config.h"
 #include "ControlLogic.h"
@@ -18,7 +18,7 @@ class NavvyWebServer {
 
   void broadcastTelemetry(const String &jsonPayload);
   bool takeCommand(WebCommand &commandOut);
-  bool clientConnected() const;
+  bool clientConnected();
 
  private:
   static void onWebSocketEvent(uint8_t clientId, WStype_t type, uint8_t *payload, size_t length);

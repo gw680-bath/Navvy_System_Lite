@@ -21,6 +21,12 @@ enum class ControlMode : uint8_t {
 struct ControlOutput {
   int steeringUs = 1500;
   int throttleUs = 1500;
+  int driveLeftUs = 1500;
+  int driveRightUs = 1500;
+  int displaySteeringUs = 1500;
+  int displayThrottleUs = 1500;
+  int displayDriveLeftUs = 1500;
+  int displayDriveRightUs = 1500;
   ControlSource currentSource = ControlSource::Failsafe;
   bool armed = false;
   bool rcSignalOk = false;
@@ -37,6 +43,9 @@ struct WebCommand {
   bool hasControl = false;
   int steeringUs = 1500;
   int throttleUs = 1500;
+  bool hasDrive = false;
+  int driveLeftUs = 1500;
+  int driveRightUs = 1500;
   ControlMode mode = ControlMode::Joystick;
   bool connected = false;
 };
@@ -69,6 +78,11 @@ class ControlLogic {
   ControlMode webMode_ = ControlMode::Joystick;
   bool webConnected_ = false;
   uint32_t lastWebUpdateMs_ = 0;
+  int webDriveLeftUs_ = 1500;
+  int webDriveRightUs_ = 1500;
+  mutable int rcNeutralCh1Us_ = 1500;
+  mutable int rcNeutralCh2Us_ = 1500;
+  mutable bool rcNeutralCaptured_ = false;
 };
 
 }  // namespace navvy

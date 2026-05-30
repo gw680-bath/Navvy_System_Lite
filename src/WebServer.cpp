@@ -1,6 +1,7 @@
 #include "WebServer.h"
 
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 #include <WiFi.h>
 #include <cstring>
 
@@ -417,6 +418,70 @@ const char kHtmlPage[] PROGMEM = R"HTML(
 </body>
 </html>
 )HTML";
+
+bool loadLeftHanded() {
+  Preferences prefs;
+  if (!prefs.begin("navvy", true)) {
+    return false;
+  }
+
+  const bool leftHanded = prefs.getBool("uiLeftHanded", false);
+  prefs.end();
+  return leftHanded;
+}
+
+bool saveLeftHanded(bool leftHanded) {
+  Preferences prefs;
+  if (!prefs.begin("navvy", false)) {
+    return false;
+  }
+
+  const bool ok = prefs.putBool("uiLeftHanded", leftHanded) > 0;
+  prefs.end();
+  return ok;
+}
+
+bool saveWifiSettings(const String &ssid, const String &password) {
+  Preferences prefs;
+  if (!prefs.begin("navvy", false)) {
+    return false;
+  }
+
+  char ssidBuffer[32] = {0};
+  char passwordBuffer[64] = {0};
+  ssid.toCharArray(ssidBuffer, sizeof(ssidBuffer));
+  password.toCharArray(passwordBuffer, sizeof(passwordBuffer));
+
+  bool ok = true;
+  ok &= prefs.putBytes("staSsid", ssidBuffer, strnlen(ssidBuffer, sizeof(ssidBuffer)) + 1) > 0;
+  ok &= prefs.putBytes("staPass", passwordBuffer, strnlen(passwordBuffer, sizeof(passwordBuffer)) + 1) > 0;
+  ok &= prefs.putUChar("wifiMode", static_cast<uint8_t>(WifiMode::Station)) > 0;
+  prefs.end();
+  return ok;
+}
+
+String activeNetworkName(const AppConfig &config) {
+  const bool staConnected = WiFi.status() == WL_CONNECTED;
+  if (config.wifiMode == WifiMode::Station && staConnected && WiFi.SSID().length() > 0) {
+    return WiFi.SSID();
+  }
+  return String(config.apSsid);
+}
+
+String activeIpAddress(const AppConfig &config) {
+  if (config.wifiMode == WifiMode::Station && WiFi.status() == WL_CONNECTED) {
+    return WiFi.localIP().toString();
+  }
+  return WiFi.softAPIP().toString();
+}
+
+String activeMacAddress(const AppConfig &config) {
+  if (config.wifiMode == WifiMode::Station && WiFi.status() == WL_CONNECTED) {
+    return WiFi.macAddress();
+  }
+  return WiFi.softAPmacAddress();
+}
+
 }  // namespace
 
 NavvyWebServer::NavvyWebServer(ControlLogic &controlLogic)
@@ -426,6 +491,10 @@ NavvyWebServer::NavvyWebServer(ControlLogic &controlLogic)
 
 bool NavvyWebServer::begin(const AppConfig &config) {
   config_ = config;
+
+  if (!LittleFS.begin(true)) {
+    Serial.println("LittleFS mount failed, using embedded fallback UI.");
+  }
 
   const bool hasStationCredentials = config_.staSsid[0] != '\0';
   if (config_.wifiMode == WifiMode::Station && hasStationCredentials) {
@@ -447,11 +516,149 @@ bool NavvyWebServer::begin(const AppConfig &config) {
     WiFi.softAP(config_.apSsid, config_.apPassword);
   }
 
-  httpServer_.on("/", HTTP_GET, [this]() {
-    httpServer_.send_P(200, "text/html", kHtmlPage);
+  httpServer_.on("/", [this]() {
+    if (LittleFS.exists("/index.html")) {
+      File file = LittleFS.open("/index.html", "r");
+      httpServer_.streamFile(file, "text/html");
+      file.close();
+    } else {
+      httpServer_.send_P(200, "text/html", kHtmlPage);
+    }
   });
 
-  httpServer_.on("/health", HTTP_GET, [this]() {
+  httpServer_.on("/settings.html", [this]() {
+    if (LittleFS.exists("/settings.html")) {
+      File file = LittleFS.open("/settings.html", "r");
+      httpServer_.streamFile(file, "text/html");
+      file.close();
+    } else {
+      httpServer_.send(404, "text/plain", "settings.html missing");
+    }
+  });
+
+  httpServer_.on("/preview.html", [this]() {
+    if (LittleFS.exists("/preview.html")) {
+      File file = LittleFS.open("/preview.html", "r");
+      httpServer_.streamFile(file, "text/html");
+      file.close();
+    } else {
+      httpServer_.send(404, "text/plain", "preview.html missing");
+    }
+  });
+
+  httpServer_.on("/style.css", [this]() {
+    if (LittleFS.exists("/style.css")) {
+      File file = LittleFS.open("/style.css", "r");
+      httpServer_.streamFile(file, "text/css");
+      file.close();
+    } else {
+      httpServer_.send(404, "text/plain", "style.css missing");
+    }
+  });
+
+  httpServer_.on("/app.js", [this]() {
+    if (LittleFS.exists("/app.js")) {
+      File file = LittleFS.open("/app.js", "r");
+      httpServer_.streamFile(file, "application/javascript");
+      file.close();
+    } else {
+      httpServer_.send(404, "text/plain", "app.js missing");
+    }
+  });
+
+  httpServer_.on("/api/info", [this]() {
+    StaticJsonDocument<384> doc;
+    doc["mac"] = activeMacAddress(config_);
+    doc["apMac"] = WiFi.softAPmacAddress();
+    doc["ip"] = activeIpAddress(config_);
+    doc["wifiNetwork"] = activeNetworkName(config_);
+    doc["ssid"] = activeNetworkName(config_);
+    doc["connectivity"] = (config_.wifiMode == WifiMode::Station && WiFi.status() == WL_CONNECTED) ? "Station" : "Access Point";
+    doc["websocket"] = clientConnected() ? "Connected" : "Disconnected";
+    doc["firmware"] = "0.1.0";
+    doc["leftHanded"] = loadLeftHanded();
+
+    String payload;
+    serializeJson(doc, payload);
+    httpServer_.send(200, "application/json", payload);
+  });
+
+  httpServer_.on("/api/ui", [this]() {
+    StaticJsonDocument<96> doc;
+    doc["leftHanded"] = loadLeftHanded();
+
+    String payload;
+    serializeJson(doc, payload);
+    httpServer_.send(200, "application/json", payload);
+  });
+
+  httpServer_.on("/api/ui", [this]() {
+    StaticJsonDocument<128> request;
+    const String body = httpServer_.arg("plain");
+    if (body.length() == 0) {
+      StaticJsonDocument<96> response;
+      response["leftHanded"] = loadLeftHanded();
+      String payload;
+      serializeJson(response, payload);
+      httpServer_.send(200, "application/json", payload);
+      return;
+    }
+
+    if (deserializeJson(request, body)) {
+      httpServer_.send(400, "application/json", "{\"ok\":false}");
+      return;
+    }
+
+    bool leftHanded = loadLeftHanded();
+    if (request.containsKey("leftHanded")) {
+      leftHanded = request["leftHanded"] | leftHanded;
+    } else if (request.containsKey("handed")) {
+      const char *handed = request["handed"] | "right";
+      leftHanded = strcmp(handed, "left") == 0;
+    }
+
+    const bool ok = saveLeftHanded(leftHanded);
+    StaticJsonDocument<96> response;
+    response["ok"] = ok;
+    response["leftHanded"] = leftHanded;
+
+    String payload;
+    serializeJson(response, payload);
+    httpServer_.send(ok ? 200 : 500, "application/json", payload);
+  });
+
+  httpServer_.on("/api/wifi", [this]() {
+    StaticJsonDocument<192> request;
+    const String body = httpServer_.arg("plain");
+    if (body.length() == 0) {
+      StaticJsonDocument<96> response;
+      response["ok"] = true;
+      response["ssid"] = String(config_.staSsid);
+      String payload;
+      serializeJson(response, payload);
+      httpServer_.send(200, "application/json", payload);
+      return;
+    }
+
+    if (deserializeJson(request, body)) {
+      httpServer_.send(400, "application/json", "{\"ok\":false}");
+      return;
+    }
+
+    const String ssid = request["ssid"] | "";
+    const String password = request["pass"] | "";
+    const bool ok = saveWifiSettings(ssid, password);
+
+    StaticJsonDocument<96> response;
+    response["ok"] = ok;
+    response["ssid"] = ssid;
+
+    String payload;
+    serializeJson(response, payload);
+    httpServer_.send(ok ? 200 : 500, "application/json", payload);
+  });
+
+  httpServer_.on("/health", [this]() {
     httpServer_.send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -472,7 +679,7 @@ void NavvyWebServer::loop() {
 }
 
 void NavvyWebServer::broadcastTelemetry(const String &jsonPayload) {
-  wsServer_.broadcastTXT(jsonPayload);
+  wsServer_.broadcastTXT(jsonPayload.c_str());
 }
 
 bool NavvyWebServer::takeCommand(WebCommand &commandOut) {
@@ -485,7 +692,7 @@ bool NavvyWebServer::takeCommand(WebCommand &commandOut) {
   return true;
 }
 
-bool NavvyWebServer::clientConnected() const {
+bool NavvyWebServer::clientConnected() {
   return wsServer_.connectedClients() > 0;
 }
 

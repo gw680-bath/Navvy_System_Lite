@@ -94,8 +94,6 @@ void IRAM_ATTR PwmInput::handleEdge(void *arg) {
     channel->pulseUs = static_cast<uint16_t>(width);
     channel->lastEdgeMs = millis();
     channel->updated = true;
-    lastUpdateMs_ = channel->lastEdgeMs;
-    available_ = true;
   }
 
   channel->high = false;

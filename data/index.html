@@ -6,66 +6,92 @@
   <title>Navvy Control Lite</title>
   <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  <header class="topbar">
-    <h1>Navvy Control Lite</h1>
-    <nav>
-      <a href="/settings.html" aria-label="Open settings page">Settings</a>
-      <button id="themeBtn" class="icon-btn" type="button" aria-label="Toggle theme">🌙</button>
-    </nav>
+<body data-page="main" data-handed="right" data-theme="dark">
+  <header class="chrome">
+    <div class="brand" aria-label="Navvy brand">
+      <span>NAVVY</span>
+      <span>UNMND</span>
+    </div>
+
+    <button class="arm-pill arm-pill-disarmed" id="armPill" type="button" aria-live="polite" aria-pressed="false">DISARMED</button>
+
+    <div class="chrome-actions">
+      <a class="icon-btn icon-link" href="/settings.html" aria-label="Open settings">
+        <span aria-hidden="true">⚙</span>
+      </a>
+      <button id="themeBtn" class="icon-btn" type="button" aria-label="Toggle theme">
+        <span aria-hidden="true">☾</span>
+      </button>
+    </div>
   </header>
 
-  <main class="container">
-    <section class="controls">
-      <p id="controlHint" class="hint" role="status" aria-live="polite">Use touch, mouse, or keyboard to drive. Space toggles ARM.</p>
-
-      <div class="row">
-        <label for="sourceSeg">Input Source</label>
-        <div class="segmented" id="sourceSeg" role="tablist" aria-label="Input source selection">
-          <button data-source="rc" class="seg active" type="button" aria-pressed="true">RC</button>
-          <button data-source="web" class="seg" type="button" aria-pressed="false">Web</button>
-        </div>
-      </div>
-
-      <div class="row center">
-        <button id="armBtn" class="big" type="button" aria-pressed="false">ARM</button>
-        <button id="neutralBtn" class="muted" type="button">Neutral</button>
-      </div>
-
-      <div class="row mode-toggle">
-        <label for="modeSeg">Control Mode</label>
+  <main class="workspace workspace-main">
+    <section class="tile summary-tile">
+      <div class="summary-line"><span>STATUS:</span><strong id="statusValue">Disarmed</strong></div>
+      <div class="summary-line"><span>SOURCE:</span><strong id="sourceValue">RC Controller</strong></div>
+      <div class="summary-line"><span>CONTROL MODE:</span><strong id="modeValue">Joystick</strong></div>
+      <div class="summary-line"><span>BATTERY:</span><strong id="batteryValue">--</strong></div>
+      <div class="mode-inline">
+        <span>MODE:</span>
         <div class="segmented" id="modeSeg" role="tablist" aria-label="Control mode selection">
           <button data-mode="joystick" class="seg active" type="button" aria-pressed="true">Joystick</button>
           <button data-mode="tank" class="seg" type="button" aria-pressed="false">Tank</button>
         </div>
       </div>
-
-      <div id="joystickArea" class="panel joystick" role="application" aria-label="Joystick control pad" tabindex="0">
-        <div id="stick" class="stick"></div>
-      </div>
-
-      <div id="tankArea" class="panel tank hidden">
-        <label for="leftSlider">Left</label>
-        <input id="leftSlider" type="range" min="-100" max="100" value="0">
-        <label for="rightSlider">Right</label>
-        <input id="rightSlider" type="range" min="-100" max="100" value="0">
-      </div>
-
+      <p id="controlHint" class="hint" role="status" aria-live="polite">Use touch, mouse, or keyboard to drive. Space toggles ARM.</p>
     </section>
 
-    <aside class="telemetry panel">
-      <h3>Telemetry</h3>
-      <div class="tele-row"><strong>Armed:</strong> <span id="tele-armed">false</span></div>
-      <div class="tele-row"><strong>Source:</strong> <span id="tele-source">unknown</span></div>
-      <div class="tele-row"><strong>RC OK:</strong> <span id="tele-rcok">false</span></div>
-      <div class="tele-row"><strong>Steering:</strong> <span id="tele-steer">0</span></div>
-      <div class="tele-row"><strong>Throttle:</strong> <span id="tele-throttle">0</span></div>
-      <div class="tele-row"><strong>Battery:</strong> <span id="tele-batt">—</span></div>
-      <div class="tele-row"><strong>Last:</strong> <span id="tele-last">—</span></div>
-    </aside>
+    <section class="tile control-tile">
+      <div id="joystickPanel" class="control-stage">
+        <div class="joystick-layout">
+          <div class="drive-meter drive-meter-left" aria-label="Throttle left meter">
+            <div class="drive-meter-track"><div id="leftDriveBar" class="drive-meter-fill"></div></div>
+            <div class="drive-meter-value" id="leftDriveValue">0%</div>
+            <div class="drive-meter-label">Throttle Left</div>
+          </div>
+
+          <div class="joystick-frame" id="joystickArea" role="application" aria-label="Joystick control pad" tabindex="0">
+            <div class="joystick-cross"></div>
+            <div class="joystick-thumb" id="joystickThumb"></div>
+            <div class="joystick-mark mark-left" aria-hidden="true"></div>
+            <div class="joystick-mark mark-right" aria-hidden="true"></div>
+          </div>
+
+          <div class="drive-meter drive-meter-right" aria-label="Throttle right meter">
+            <div class="drive-meter-track"><div id="rightDriveBar" class="drive-meter-fill drive-meter-fill-right"></div></div>
+            <div class="drive-meter-value" id="rightDriveValue">0%</div>
+            <div class="drive-meter-label">Throttle Right</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tankPanel" class="control-stage tank-stage hidden" aria-label="Tank control">
+        <div class="tank-column">
+          <span class="tank-label">Left</span>
+          <div class="tank-track">
+            <div class="tank-fill" id="leftFill"></div>
+            <input id="leftSlider" class="tank-slider" type="range" min="-100" max="100" value="0" aria-label="Left drive control">
+          </div>
+        </div>
+        <div class="tank-column">
+          <span class="tank-label">Right</span>
+          <div class="tank-track">
+            <div class="tank-fill tank-fill-right" id="rightFill"></div>
+            <input id="rightSlider" class="tank-slider" type="range" min="-100" max="100" value="0" aria-label="Right drive control">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tile actions-tile">
+      <a class="action-gear icon-link" href="/settings.html" aria-label="Open settings">
+        <span aria-hidden="true">⚙</span>
+      </a>
+      <button id="armBtn" class="arm-btn arm-btn-disarm" type="button" aria-pressed="false">ARM</button>
+    </section>
   </main>
 
-  <footer class="foot">Connect via WebSocket: <span id="wsAddr">ws://</span></footer>
+  <footer class="foot">WebSocket telemetry is live when the ESP32 is connected. Local preview runs without hardware.</footer>
 
   <script src="/app.js"></script>
 </body>

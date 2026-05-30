@@ -27,8 +27,12 @@ String Telemetry::buildJson(const ControlOutput &output,
   doc["source"] = static_cast<uint8_t>(output.currentSource);
   doc["rcOk"] = rcState.signalValid;
   doc["webOk"] = output.webConnected;
-  doc["steeringUs"] = output.steeringUs;
-  doc["throttleUs"] = output.throttleUs;
+  doc["steeringUs"] = output.displaySteeringUs;
+  doc["throttleUs"] = output.displayThrottleUs;
+  doc["throttleLeftUs"] = output.displayDriveLeftUs;
+  doc["throttleRightUs"] = output.displayDriveRightUs;
+  doc["motorSteeringUs"] = output.steeringUs;
+  doc["motorThrottleUs"] = output.throttleUs;
   if (batteryVoltage > 0.0f) {
     doc["batteryV"] = batteryVoltage;
   }
