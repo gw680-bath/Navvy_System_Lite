@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Navvy Control Lite</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Navvy Control Lite</h1>
+    <nav>
+      <a href="/settings.html" aria-label="Open settings page">Settings</a>
+      <button id="themeBtn" class="icon-btn" type="button" aria-label="Toggle theme">🌙</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="controls">
+      <p id="controlHint" class="hint" role="status" aria-live="polite">Use touch, mouse, or keyboard to drive. Space toggles ARM.</p>
+
+      <div class="row">
+        <label for="sourceSeg">Input Source</label>
+        <div class="segmented" id="sourceSeg" role="tablist" aria-label="Input source selection">
+          <button data-source="rc" class="seg active" type="button" aria-pressed="true">RC</button>
+          <button data-source="web" class="seg" type="button" aria-pressed="false">Web</button>
+        </div>
+      </div>
+
+      <div class="row center">
+        <button id="armBtn" class="big" type="button" aria-pressed="false">ARM</button>
+        <button id="neutralBtn" class="muted" type="button">Neutral</button>
+      </div>
+
+      <div class="row mode-toggle">
+        <label for="modeSeg">Control Mode</label>
+        <div class="segmented" id="modeSeg" role="tablist" aria-label="Control mode selection">
+          <button data-mode="joystick" class="seg active" type="button" aria-pressed="true">Joystick</button>
+          <button data-mode="tank" class="seg" type="button" aria-pressed="false">Tank</button>
+        </div>
+      </div>
+
+      <div id="joystickArea" class="panel joystick" role="application" aria-label="Joystick control pad" tabindex="0">
+        <div id="stick" class="stick"></div>
+      </div>
+
+      <div id="tankArea" class="panel tank hidden">
+        <label for="leftSlider">Left</label>
+        <input id="leftSlider" type="range" min="-100" max="100" value="0">
+        <label for="rightSlider">Right</label>
+        <input id="rightSlider" type="range" min="-100" max="100" value="0">
+      </div>
+
+    </section>
+
+    <aside class="telemetry panel">
+      <h3>Telemetry</h3>
+      <div class="tele-row"><strong>Armed:</strong> <span id="tele-armed">false</span></div>
+      <div class="tele-row"><strong>Source:</strong> <span id="tele-source">unknown</span></div>
+      <div class="tele-row"><strong>RC OK:</strong> <span id="tele-rcok">false</span></div>
+      <div class="tele-row"><strong>Steering:</strong> <span id="tele-steer">0</span></div>
+      <div class="tele-row"><strong>Throttle:</strong> <span id="tele-throttle">0</span></div>
+      <div class="tele-row"><strong>Battery:</strong> <span id="tele-batt">—</span></div>
+      <div class="tele-row"><strong>Last:</strong> <span id="tele-last">—</span></div>
+    </aside>
+  </main>
+
+  <footer class="foot">Connect via WebSocket: <span id="wsAddr">ws://</span></footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

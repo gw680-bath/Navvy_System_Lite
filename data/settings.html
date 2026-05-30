@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Navvy Settings</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Settings</h1>
+    <nav>
+      <a href="/" aria-label="Return to main control page">Main</a>
+      <button id="themeBtn2" class="icon-btn" type="button" aria-label="Toggle theme">🌙</button>
+    </nav>
+  </header>
+
+  <main class="container settings">
+    <section class="panel">
+      <h3>Device Info</h3>
+      <div class="tele-row"><strong>MAC:</strong> <span id="info-mac">—</span></div>
+      <div class="tele-row"><strong>IP:</strong> <span id="info-ip">—</span></div>
+      <div class="tele-row"><strong>SSID:</strong> <span id="info-ssid">—</span></div>
+      <div class="tele-row"><strong>FW:</strong> <span id="info-fw">—</span></div>
+    </section>
+
+    <section class="panel">
+      <h3>WiFi</h3>
+      <form id="wifiForm">
+        <label>SSID</label>
+        <input id="wifiSsid" type="text" placeholder="MyNetwork">
+        <label>Password</label>
+        <input id="wifiPass" type="password" placeholder="••••••">
+        <div class="row">
+          <button type="submit" class="big">Save</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h3>Connectivity</h3>
+      <div class="tele-row"><strong>WebSocket:</strong> <span id="info-ws">disconnected</span></div>
+      <div class="tele-row"><strong>Last Web Cmd:</strong> <span id="info-lastcmd">—</span></div>
+      <div id="wifiStatus" class="status-pill" aria-live="polite">Idle</div>
+    </section>
+
+    <section class="panel code">
+      <h3>Advanced</h3>
+      <p>Device details and logs (read-only).</p>
+      <pre id="deviceLog">No logs</pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

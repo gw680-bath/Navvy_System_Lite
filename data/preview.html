@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Navvy Control Lite Preview</title>
+  <style>
+    :root{color-scheme:light;--bg:#f4f7fb;--panel:#fff;--panel2:#eef3fb;--text:#101828;--muted:#667085;--border:rgba(16,24,40,.08);--accent:#2563eb;--accent2:#1d4ed8;--danger:#dc2626;--success:#059669;--shadow:0 12px 40px rgba(16,24,40,.08)}
+    [data-theme="dark"]{color-scheme:dark;--bg:#07111f;--panel:#0d1728;--panel2:#132036;--text:#e5eef9;--muted:#94a3b8;--border:rgba(148,163,184,.16);--accent:#60a5fa;--accent2:#93c5fd;--danger:#fb7185;--success:#34d399;--shadow:0 16px 44px rgba(0,0,0,.3)}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    html,body{margin:0;min-height:100%;background:radial-gradient(circle at top left, rgba(37,99,235,.12), transparent 28%),radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),var(--bg);color:var(--text)}
+    a{text-decoration:none;color:inherit}
+    button,input{font:inherit}
+    button{touch-action:manipulation}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:rgba(255,255,255,.65);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+    [data-theme="dark"] .topbar{background:rgba(13,23,40,.8)}
+    .topbar h1{margin:0;font-size:1rem;letter-spacing:.02em}
+    .topbar nav{display:flex;gap:10px;align-items:center}
+    .icon-btn,.chip,.seg,.big,.muted{transition:transform .18s ease,background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease}
+    .icon-btn{background:var(--panel);border:1px solid var(--border);font-size:1.05rem;cursor:pointer;width:42px;height:42px;border-radius:999px;display:grid;place-items:center;box-shadow:0 6px 18px rgba(16,24,40,.08)}
+    .container{max-width:1160px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:minmax(0,1fr) 280px}
+    .panel{background:var(--panel);padding:14px;border-radius:18px;border:1px solid var(--border);box-shadow:var(--shadow)}
+    .controls{display:grid;gap:14px}
+    .hint{margin:0;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--panel2);color:var(--muted)}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .row.center{justify-content:center}
+    label{color:var(--muted);font-size:.92rem;font-weight:600}
+    .segmented{display:inline-flex;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:var(--panel2)}
+    .seg{padding:10px 14px;border:0;background:transparent;color:var(--text);cursor:pointer;min-width:88px}
+    .seg.active{background:var(--accent);color:#fff;box-shadow:inset 0 -1px 0 rgba(255,255,255,.12)}
+    .seg:focus-visible,.icon-btn:focus-visible,.big:focus-visible,.muted:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    .big{padding:12px 18px;background:var(--accent);color:#fff;border:0;border-radius:14px;cursor:pointer;min-width:104px;font-weight:650;box-shadow:0 8px 18px rgba(37,99,235,.22)}
+    .big.danger{background:var(--danger);box-shadow:0 8px 18px rgba(220,38,38,.22)}
+    .muted{padding:11px 14px;border:1px solid var(--border);background:var(--panel2);border-radius:14px;cursor:pointer;color:var(--text)}
+    .joystick{height:min(54vw,360px);display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none;position:relative;overflow:hidden}
+    .joystick::before{content:"";position:absolute;inset:18px;border-radius:24px;border:1px dashed var(--border);pointer-events:none}
+    .stick{width:min(42vw,170px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 35%, rgba(255,255,255,.45), transparent 26%),linear-gradient(180deg, rgba(37,99,235,.08), rgba(37,99,235,.02));border:1px solid var(--border);position:relative;box-shadow:0 12px 26px rgba(16,24,40,.10);will-change:transform}
+    .telemetry{align-self:start;position:sticky;top:76px}
+    .tele-row{margin:8px 0;display:flex;justify-content:space-between;gap:10px;color:var(--text)}
+    .tele-row strong{color:var(--muted);font-weight:600}
+    .status-pill{margin-top:12px;display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(5,150,105,.12);color:var(--success);font-size:.88rem;border:1px solid rgba(5,150,105,.18)}
+    .status-pill[data-state="error"]{background:rgba(220,38,38,.12);color:var(--danger);border-color:rgba(220,38,38,.18)}
+    .settings{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+    .settings .wide{grid-column:1 / -1}
+    input[type="text"],input[type="password"]{width:100%;padding:12px 14px;margin:6px 0 10px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text)}
+    input[type="range"]{width:100%;accent-color:var(--accent)}
+    pre{white-space:pre-wrap;word-break:break-word;background:rgba(127,127,127,.08);padding:12px;border-radius:12px;border:1px solid var(--border);margin:0}
+    .hidden{display:none}
+    .page-switch{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{padding:10px 14px;border-radius:999px;border:1px solid var(--border);background:var(--panel2);cursor:pointer}
+    .chip.active{background:var(--accent);color:#fff;border-color:transparent}
+    .foot{padding:10px 16px 22px;text-align:center;color:var(--muted);font-size:.9rem}
+    @media (max-width:900px){.container{grid-template-columns:1fr}.telemetry{position:static}.settings{grid-template-columns:1fr}}
+    @media (max-width:640px){.topbar{padding:12px 14px}.container{padding:12px}.panel{padding:12px;border-radius:16px}.row{align-items:stretch}.segmented{width:100%}.seg{flex:1;min-width:0}.row.center{gap:10px}.big,.muted{flex:1}.joystick{height:300px}.stick{width:38vw;min-width:128px}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Navvy Control Lite Preview</h1>
+    <nav>
+      <div class="page-switch" aria-label="Preview section switcher">
+        <button class="chip active" id="showMain" type="button">Main</button>
+        <button class="chip" id="showSettings" type="button">Settings</button>
+      </div>
+      <button id="themeBtn" class="icon-btn" type="button" aria-label="Toggle theme">🌙</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section id="mainView" class="controls">
+      <p class="hint" id="controlHint" role="status" aria-live="polite">Use touch, mouse, or keyboard to drive. Space toggles ARM.</p>
+      <div class="row">
+        <label>Input Source</label>
+        <div class="segmented" id="sourceSeg" role="tablist" aria-label="Input source selection">
+          <button data-source="rc" class="seg active" type="button" aria-pressed="true">RC</button>
+          <button data-source="web" class="seg" type="button" aria-pressed="false">Web</button>
+        </div>
+      </div>
+      <div class="row center">
+        <button id="armBtn" class="big" type="button" aria-pressed="false">ARM</button>
+        <button id="neutralBtn" class="muted" type="button">Neutral</button>
+      </div>
+      <div class="row">
+        <label>Control Mode</label>
+        <div class="segmented" id="modeSeg" role="tablist" aria-label="Control mode selection">
+          <button data-mode="joystick" class="seg active" type="button" aria-pressed="true">Joystick</button>
+          <button data-mode="tank" class="seg" type="button" aria-pressed="false">Tank</button>
+        </div>
+      </div>
+      <div id="joystickArea" class="panel joystick" role="application" aria-label="Joystick control pad" tabindex="0">
+        <div id="stick" class="stick"></div>
+      </div>
+      <div id="tankArea" class="panel hidden" style="display:grid;gap:10px;">
+        <label for="leftSlider">Left</label>
+        <input id="leftSlider" type="range" min="-100" max="100" value="0">
+        <label for="rightSlider">Right</label>
+        <input id="rightSlider" type="range" min="-100" max="100" value="0">
+      </div>
+    </section>
+
+    <section id="settingsView" class="controls hidden">
+      <div class="panel">
+        <h3 style="margin:0 0 12px;">Settings</h3>
+        <div class="settings">
+          <div>
+            <label>Device MAC</label>
+            <pre>A4:CF:12:9B:20:31</pre>
+          </div>
+          <div>
+            <label>WiFi Network</label>
+            <pre>Navvy-Lite</pre>
+          </div>
+          <div>
+            <label>Connectivity</label>
+            <pre>SoftAP + WebSocket</pre>
+          </div>
+          <div>
+            <label>Firmware</label>
+            <pre>0.1.0-preview</pre>
+          </div>
+          <div class="wide">
+            <label>SSID</label>
+            <input type="text" value="Navvy-Lite">
+            <label>Password</label>
+            <input type="password" value="••••••••">
+          </div>
+          <div class="wide">
+            <label>Notes</label>
+            <pre>Demo preview only. The production build wires this page to /api/info and /api/wifi.</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="telemetry panel">
+      <h3 style="margin:0 0 12px;">Telemetry</h3>
+      <div class="tele-row"><strong>Armed:</strong> <span id="tele-armed">false</span></div>
+      <div class="tele-row"><strong>Source:</strong> <span id="tele-source">web</span></div>
+      <div class="tele-row"><strong>RC OK:</strong> <span id="tele-rcok">true</span></div>
+      <div class="tele-row"><strong>Steering:</strong> <span id="tele-steer">0.00</span></div>
+      <div class="tele-row"><strong>Throttle:</strong> <span id="tele-throttle">0.00</span></div>
+      <div class="tele-row"><strong>Battery:</strong> <span id="tele-batt">12.4V</span></div>
+      <div class="tele-row"><strong>Last:</strong> <span id="tele-last">—</span></div>
+      <div class="status-pill" id="wifiStatus">Idle</div>
+    </aside>
+  </main>
+
+  <footer class="foot">Preview only. Mouse, touch, keyboard, and theme switch all work locally.</footer>
+
+  <script>
+    const root = document.documentElement;
+    const state = { mode: 'joystick', source: 'rc', armed: false, current: { x: 0, y: 0 }, target: { x: 0, y: 0 }, deadzone: 0.08, smoothing: 0.18, keys: { up: false, down: false, left: false, right: false } };
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const deadzone = (v, z) => Math.abs(v) <= z ? 0 : Math.sign(v) * clamp((Math.abs(v) - z) / (1 - z), 0, 1);
+    const $ = (id) => document.getElementById(id);
+    const setTheme = (theme) => { root.setAttribute('data-theme', theme); $('themeBtn').textContent = theme === 'dark' ? '☀' : '🌙'; };
+    $('themeBtn').addEventListener('click', () => setTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+    $('showMain').addEventListener('click', () => { $('mainView').classList.remove('hidden'); $('settingsView').classList.add('hidden'); $('showMain').classList.add('active'); $('showSettings').classList.remove('active'); });
+    $('showSettings').addEventListener('click', () => { $('mainView').classList.add('hidden'); $('settingsView').classList.remove('hidden'); $('showSettings').classList.add('active'); $('showMain').classList.remove('active'); });
+    const setHint = (text) => $('controlHint').textContent = text;
+    const setTelemetry = (x, y) => { $('tele-steer').textContent = x.toFixed(2); $('tele-throttle').textContent = y.toFixed(2); $('tele-last').textContent = new Date().toLocaleTimeString(); };
+    const syncSeg = (selector, key, value) => document.querySelectorAll(selector + ' .seg').forEach((b) => { const active = b.dataset[key] === value; b.classList.toggle('active', active); b.setAttribute('aria-pressed', active ? 'true' : 'false'); });
+    document.getElementById('sourceSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.source = b.dataset.source; syncSeg('#sourceSeg', 'source', state.source); });
+    document.getElementById('modeSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.mode = b.dataset.mode; syncSeg('#modeSeg', 'mode', state.mode); $('joystickArea').classList.toggle('hidden', state.mode !== 'joystick'); $('tankArea').classList.toggle('hidden', state.mode !== 'tank'); setHint(state.mode === 'joystick' ? 'Joystick mode active. Use touch, mouse, or arrow keys.' : 'Tank mode active. Use both sliders together for drive control.'); });
+    $('armBtn').addEventListener('click', () => { state.armed = !state.armed; $('armBtn').textContent = state.armed ? 'DISARM' : 'ARM'; $('armBtn').classList.toggle('danger', state.armed); $('armBtn').setAttribute('aria-pressed', state.armed ? 'true' : 'false'); $('tele-armed').textContent = state.armed ? 'true' : 'false'; });
+    $('neutralBtn').addEventListener('click', () => { state.current = { x: 0, y: 0 }; state.target = { x: 0, y: 0 }; $('stick').style.transform = 'translate(0px, 0px)'; $('leftSlider').value = '0'; $('rightSlider').value = '0'; setTelemetry(0, 0); setHint('Returned to neutral.'); });
+    const area = $('joystickArea');
+    const stick = $('stick');
+    let active = false;
+    const pointerXY = (e) => { const r = area.getBoundingClientRect(); return { x: clamp(((e.clientX - r.left) / r.width) * 2 - 1, -1, 1), y: clamp(-(((e.clientY - r.top) / r.height) * 2 - 1), -1, 1) }; };
+    const updateTarget = (x, y) => { state.target.x = deadzone(x, state.deadzone); state.target.y = deadzone(y, state.deadzone); };
+    const tick = () => { state.current.x = lerp(state.current.x, state.target.x, state.smoothing); state.current.y = lerp(state.current.y, state.target.y, state.smoothing); stick.style.transform = `translate(${(state.current.x * 56).toFixed(1)}px, ${(-state.current.y * 56).toFixed(1)}px)`; setTelemetry(state.current.x, state.current.y); requestAnimationFrame(tick); };
+    area.addEventListener('pointerdown', (e) => { active = true; area.setPointerCapture(e.pointerId); const p = pointerXY(e); updateTarget(p.x, p.y); setHint('Dragging joystick. Release to return to neutral.'); });
+    area.addEventListener('pointermove', (e) => { if (!active) return; const p = pointerXY(e); updateTarget(p.x, p.y); });
+    const finish = (e) => { if (!active) return; active = false; updateTarget(0, 0); setHint('Joystick returned to neutral.'); };
+    area.addEventListener('pointerup', finish);
+    area.addEventListener('pointercancel', finish);
+    area.addEventListener('lostpointercapture', finish);
+    ['leftSlider', 'rightSlider'].forEach((id) => $(id).addEventListener('input', () => { $('tele-source').textContent = 'web'; $('tele-rcok').textContent = 'true'; $('wifiStatus').textContent = 'Idle'; }));
+    document.addEventListener('keydown', (e) => { if (e.altKey || e.ctrlKey || e.metaKey) return; const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }; if (e.key === ' ') { e.preventDefault(); $('armBtn').click(); return; } const key = map[e.key]; if (!key) return; e.preventDefault(); state.keys[key] = true; const x = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0); const y = (state.keys.up ? 1 : 0) - (state.keys.down ? 1 : 0); updateTarget(x, y); });
+    document.addEventListener('keyup', (e) => { const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }; const key = map[e.key]; if (!key) return; state.keys[key] = false; const x = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0); const y = (state.keys.up ? 1 : 0) - (state.keys.down ? 1 : 0); updateTarget(x, y); });
+    $('tele-last').textContent = new Date().toLocaleTimeString();
+    setTheme('light');
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
