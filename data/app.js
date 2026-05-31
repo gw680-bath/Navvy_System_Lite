@@ -72,14 +72,27 @@
     return clamp((us - 1500) / 500, -1, 1);
   }
 
-  function sourceLabel(source) {
-    if (source === 1) return 'RC Controller';
+  function sourceLabel(source, rcOk) {
     if (source === 2) return 'Control App';
-    return 'Failsafe';
+    if (source === 1 && rcOk) return 'RC Controller';
+    return 'No RC Signal';
   }
 
   function modeLabel(mode) {
     return mode === 'tank' ? 'Tank Steer' : 'Joystick';
+  }
+
+  function networkLabel(connectivity, websocket) {
+    if ((connectivity || '').includes('Access Point') && websocket !== 'Connected') {
+      return 'AP mode • waiting for browser';
+    }
+    if ((connectivity || '').includes('Station') && websocket !== 'Connected') {
+      return 'Station mode • reconnecting';
+    }
+    if (websocket === 'Connected') {
+      return `${connectivity || 'Network'} • online`;
+    }
+    return `${connectivity || 'Network'} • ${websocket || 'offline'}`;
   }
 
   function signalLevelFromQuality(quality) {
@@ -116,7 +129,7 @@
   function refreshNetworkIndicators() {
     const chipText = $('netChipText');
     const signalValue = $('signalValue');
-    const text = state.network.text || `${state.network.connectivity} • ${state.network.websocket}`;
+    const text = state.network.text || networkLabel(state.network.connectivity, state.network.websocket);
 
     if (chipText) chipText.textContent = text;
     if (signalValue) signalValue.textContent = state.network.signalText || '--';
@@ -183,11 +196,11 @@
     const sourceValue = $('sourceValue');
     const modeValue = $('modeValue');
     const batteryValue = $('batteryValue');
-    const connectionState = $('connectionState');
+    const connectionState = $('connectivityState') || $('connectionState');
     const armPill = $('armPill');
 
     if (statusValue) statusValue.textContent = packet.armed ? 'Armed' : 'Disarmed';
-    if (sourceValue) sourceValue.textContent = sourceLabel(packet.source);
+    if (sourceValue) sourceValue.textContent = sourceLabel(packet.source, packet.rcOk);
     if (modeValue) modeValue.textContent = modeLabel(state.mode);
     if (batteryValue) batteryValue.textContent = packet.batteryV ? `${packet.batteryV.toFixed(1)}V` : '--';
     if (connectionState) connectionState.textContent = packet.webOk ? 'Connected' : 'Disconnected';
@@ -222,6 +235,7 @@
 
   function setMode(mode) {
     state.mode = mode === 'tank' ? 'tank' : 'joystick';
+    document.body.dataset.mode = state.mode;
     const joystickPanel = $('joystickPanel');
     const tankPanel = $('tankPanel');
 
@@ -262,6 +276,64 @@
   function setDriveSides(left, right) {
     state.throttleLeft = clamp(left, -1, 1);
     state.throttleRight = clamp(right, -1, 1);
+  }
+
+  function tankPointerState() {
+    if (!state.tankPointers) {
+      state.tankPointers = { left: null, right: null };
+    }
+    return state.tankPointers;
+  }
+
+  function tankValueFromPointer(trackNode, event) {
+    const rect = trackNode.getBoundingClientRect();
+    const normalized = clamp((rect.bottom - event.clientY) / rect.height, 0, 1);
+    return normalized * 2 - 1;
+  }
+
+  function commitTankControl() {
+    syncTankControlsFromDrive();
+    sendControl();
+  }
+
+  function setTankSideFromPointer(side, event, trackNode, sliderNode) {
+    const pointers = tankPointerState();
+    if (event.type === 'pointerdown') {
+      pointers[side] = event.pointerId;
+      if (sliderNode && sliderNode.setPointerCapture) {
+        sliderNode.setPointerCapture(event.pointerId);
+      }
+    } else if (pointers[side] !== event.pointerId) {
+      return;
+    }
+
+    const value = tankValueFromPointer(trackNode, event);
+    if (side === 'left') {
+      state.throttleLeft = value;
+    } else {
+      state.throttleRight = value;
+    }
+
+    if (sliderNode) {
+      sliderNode.value = String(Math.round(value * 100));
+    }
+
+    commitTankControl();
+    event.preventDefault();
+  }
+
+  function releaseTankSide(side, event, sliderNode) {
+    const pointers = tankPointerState();
+    if (pointers[side] !== event.pointerId) {
+      return;
+    }
+
+    pointers[side] = null;
+    if (sliderNode && sliderNode.releasePointerCapture) {
+      try {
+        sliderNode.releasePointerCapture(event.pointerId);
+      } catch (_) {}
+    }
   }
 
   function setSignedMeter(fillNode, valueNode, value) {
@@ -305,7 +377,7 @@
 
     const applyTankFill = (fillNode, value) => {
       if (!fillNode) return;
-      fillNode.style.height = `${Math.abs(value) * 0.5}%`;
+      fillNode.style.height = `${Math.abs(value) * 50}%`;
       if (value >= 0) {
         fillNode.style.top = 'auto';
         fillNode.style.bottom = '50%';
@@ -355,6 +427,7 @@
 
     syncTankControlsFromDrive();
     renderDriveMeters();
+    sendControl();
   }
 
   function applyJoystickTarget(x, y) {
@@ -409,6 +482,7 @@
   function syncPreviewValues() {
     setHandedness(localStorage.getItem('navvy-handed') || 'right');
     setTheme(localStorage.getItem('navvy-theme') || 'dark');
+    document.body.dataset.mode = 'joystick';
     setSource('rc');
     setMode('joystick');
     setArmState(false);
@@ -419,7 +493,7 @@
       signalBars: previewInfo.wifiSignalBars,
       signalQuality: previewInfo.wifiSignalQuality,
       signalDbm: previewInfo.wifiRssiDbm,
-      text: `${previewInfo.connectivity} • ${previewInfo.websocket}`,
+      text: networkLabel(previewInfo.connectivity, previewInfo.websocket),
       signalText: '3/4 (-64 dBm)',
     };
     refreshNetworkIndicators();
@@ -435,6 +509,7 @@
     setSource(state.source);
     setStatusSummary(packet);
     state.network.websocket = packet.webOk ? 'Connected' : 'Disconnected';
+    state.network.text = networkLabel(state.network.connectivity, state.network.websocket);
     refreshNetworkIndicators();
 
     if (typeof packet.throttleLeftUs === 'number' && typeof packet.throttleRightUs === 'number') {
@@ -469,7 +544,7 @@
       signalBars: signal.bars,
       signalQuality: signal.quality,
       signalDbm: signal.rssiDbm,
-      text: signal.text,
+      text: networkLabel(info.connectivity, info.websocket),
       signalText: signal.signalText,
     };
     setSummaryLines({
@@ -497,6 +572,19 @@
   }
 
   function installBindings() {
+    const suppressGestureZoom = (event) => {
+      event.preventDefault();
+    };
+
+    document.addEventListener('gesturestart', suppressGestureZoom, { passive: false });
+    document.addEventListener('gesturechange', suppressGestureZoom, { passive: false });
+    document.addEventListener('gestureend', suppressGestureZoom, { passive: false });
+    document.addEventListener('touchmove', (event) => {
+      if (event.touches && event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+
     ui.armPill = $('armPill');
     ui.armButton = $('armBtn');
     ui.joystickThumb = $('joystickThumb');
@@ -606,9 +694,37 @@
     const rightSlider = $('rightSlider');
     if (leftSlider) {
       leftSlider.addEventListener('input', updateTankVisuals);
+      const leftTrack = leftSlider.closest('.tank-track');
+      if (leftTrack) {
+        leftTrack.addEventListener('pointerdown', (event) => {
+          setTankSideFromPointer('left', event, leftTrack, leftSlider);
+        });
+        leftTrack.addEventListener('pointermove', (event) => {
+          const pointers = tankPointerState();
+          if (pointers.left !== event.pointerId) return;
+          setTankSideFromPointer('left', event, leftTrack, leftSlider);
+        });
+        leftTrack.addEventListener('pointerup', (event) => releaseTankSide('left', event, leftSlider));
+        leftTrack.addEventListener('pointercancel', (event) => releaseTankSide('left', event, leftSlider));
+        leftTrack.addEventListener('lostpointercapture', (event) => releaseTankSide('left', event, leftSlider));
+      }
     }
     if (rightSlider) {
       rightSlider.addEventListener('input', updateTankVisuals);
+      const rightTrack = rightSlider.closest('.tank-track');
+      if (rightTrack) {
+        rightTrack.addEventListener('pointerdown', (event) => {
+          setTankSideFromPointer('right', event, rightTrack, rightSlider);
+        });
+        rightTrack.addEventListener('pointermove', (event) => {
+          const pointers = tankPointerState();
+          if (pointers.right !== event.pointerId) return;
+          setTankSideFromPointer('right', event, rightTrack, rightSlider);
+        });
+        rightTrack.addEventListener('pointerup', (event) => releaseTankSide('right', event, rightSlider));
+        rightTrack.addEventListener('pointercancel', (event) => releaseTankSide('right', event, rightSlider));
+        rightTrack.addEventListener('lostpointercapture', (event) => releaseTankSide('right', event, rightSlider));
+      }
     }
 
     document.addEventListener('keydown', (event) => {
@@ -727,6 +843,10 @@
     };
   }
 
+  function lockAppHeight() {
+    document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+  }
+
   function loadInfo() {
     if (isPreview) {
       setInfoFromServer({ ...previewInfo, firmware: state.firmware, leftHanded: previewInfo.leftHanded });
@@ -776,6 +896,7 @@
   }
 
   function init() {
+    lockAppHeight();
     installBindings();
     if (isPreview) {
       syncPreviewValues();

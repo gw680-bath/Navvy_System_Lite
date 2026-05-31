@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Navvy Control Lite Preview</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=20260531a">
 </head>
 <body data-page="main" data-handed="right" data-theme="dark">
   <header class="chrome">
@@ -16,6 +16,12 @@
     <button class="arm-pill arm-pill-disarmed" id="armPill" type="button" aria-live="polite" aria-pressed="false">DISARMED</button>
 
     <div class="chrome-actions">
+      <div class="net-chip" id="netChip" aria-label="Connectivity status">
+        <span class="net-chip-text" id="netChipText">Connecting...</span>
+        <span class="signal-bars" id="signalBars" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </span>
+      </div>
       <a class="icon-btn icon-link" href="./settings-preview.html" aria-label="Open settings">
         <span aria-hidden="true">⚙</span>
       </a>
@@ -93,7 +99,7 @@
 
   <footer class="foot">Preview only. Layout, handedness, theme and controls are all active locally.</footer>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=20260531a"></script>
 </body>
 </html><!--
 <html lang="en" data-theme="light">
