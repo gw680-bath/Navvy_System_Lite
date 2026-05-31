@@ -16,11 +16,18 @@
     throttleLeft: 0,
     throttleRight: 0,
     deadzone: 0.08,
-    smoothing: 0.18,
+    smoothing: 0.28,
     lastSendAt: 0,
     activePointer: null,
     keys: { up: false, down: false, left: false, right: false },
     firmware: '0.1.0',
+    network: {
+      connectivity: 'Access Point',
+      websocket: 'Disconnected',
+      signalBars: 0,
+      signalQuality: 0,
+      signalDbm: 0,
+    },
   };
 
   const previewInfo = {
@@ -31,6 +38,9 @@
     ssid: 'Navvy-Lite-01',
     connectivity: 'SoftAP + WebSocket',
     websocket: 'Connected',
+    wifiSignalBars: 3,
+    wifiSignalQuality: 72,
+    wifiRssiDbm: -64,
     leftHanded: false,
   };
 
@@ -70,6 +80,47 @@
 
   function modeLabel(mode) {
     return mode === 'tank' ? 'Tank Steer' : 'Joystick';
+  }
+
+  function signalLevelFromQuality(quality) {
+    if (quality >= 85) return 4;
+    if (quality >= 65) return 3;
+    if (quality >= 40) return 2;
+    if (quality >= 15) return 1;
+    return 0;
+  }
+
+  function setSignalLevel(level) {
+    const clamped = clamp(Math.round(level), 0, 4);
+    document.querySelectorAll('.signal-bars').forEach((node) => {
+      node.dataset.level = String(clamped);
+    });
+  }
+
+  function describeSignal(info) {
+    const connectivity = info.connectivity || 'Disconnected';
+    const websocket = info.websocket || 'Offline';
+    const bars = typeof info.wifiSignalBars === 'number' ? info.wifiSignalBars : signalLevelFromQuality(info.wifiSignalQuality ?? 0);
+    const quality = typeof info.wifiSignalQuality === 'number' ? info.wifiSignalQuality : 0;
+    const rssiDbm = typeof info.wifiRssiDbm === 'number' ? info.wifiRssiDbm : 0;
+
+    return {
+      text: `${connectivity} • ${websocket}`,
+      bars,
+      signalText: quality > 0 ? `${bars}/4 ${rssiDbm ? `(${rssiDbm} dBm)` : ''}`.trim() : `${bars}/4`,
+      quality,
+      rssiDbm,
+    };
+  }
+
+  function refreshNetworkIndicators() {
+    const chipText = $('netChipText');
+    const signalValue = $('signalValue');
+    const text = state.network.text || `${state.network.connectivity} • ${state.network.websocket}`;
+
+    if (chipText) chipText.textContent = text;
+    if (signalValue) signalValue.textContent = state.network.signalText || '--';
+    setSignalLevel(state.network.signalBars || 0);
   }
 
   function setTheme(theme) {
@@ -157,6 +208,7 @@
     bind('firmwareVersion', info.firmware || state.firmware);
     bind('connectivityState', info.connectivity);
     bind('websocketState', info.websocket);
+    bind('signalValue', info.signalText);
     bind('deviceLog', `MAC: ${info.mac || '--'}\nAP MAC: ${info.apMac || '--'}\nIP: ${info.ip || '--'}\nWi-Fi: ${info.wifiNetwork || '--'}\nSSID: ${info.ssid || '--'}\nConnectivity: ${info.connectivity || '--'}`);
   }
 
@@ -324,7 +376,7 @@
 
   function sendControl() {
     const now = performance.now();
-    if (now - state.lastSendAt < 24) return;
+    if (now - state.lastSendAt < 16) return;
     state.lastSendAt = now;
 
     const payload = {
@@ -360,7 +412,17 @@
     setSource('rc');
     setMode('joystick');
     setArmState(false);
-    setSummaryLines(previewInfo);
+    setSummaryLines({ ...previewInfo, signalText: '3/4 (-64 dBm)' });
+    state.network = {
+      connectivity: previewInfo.connectivity,
+      websocket: previewInfo.websocket,
+      signalBars: previewInfo.wifiSignalBars,
+      signalQuality: previewInfo.wifiSignalQuality,
+      signalDbm: previewInfo.wifiRssiDbm,
+      text: `${previewInfo.connectivity} • ${previewInfo.websocket}`,
+      signalText: '3/4 (-64 dBm)',
+    };
+    refreshNetworkIndicators();
     setStatusSummary({ armed: false, source: 1, webOk: true, batteryV: 22.4 });
   }
 
@@ -372,6 +434,8 @@
     state.connected = !!packet.webOk;
     setSource(state.source);
     setStatusSummary(packet);
+    state.network.websocket = packet.webOk ? 'Connected' : 'Disconnected';
+    refreshNetworkIndicators();
 
     if (typeof packet.throttleLeftUs === 'number' && typeof packet.throttleRightUs === 'number') {
       setDriveSides(usToNorm(packet.throttleLeftUs), usToNorm(packet.throttleRightUs));
@@ -398,6 +462,16 @@
   }
 
   function setInfoFromServer(info) {
+    const signal = describeSignal(info || {});
+    state.network = {
+      connectivity: info.connectivity || 'Disconnected',
+      websocket: info.websocket || 'Offline',
+      signalBars: signal.bars,
+      signalQuality: signal.quality,
+      signalDbm: signal.rssiDbm,
+      text: signal.text,
+      signalText: signal.signalText,
+    };
     setSummaryLines({
       mac: info.mac,
       apMac: info.apMac,
@@ -407,7 +481,9 @@
       connectivity: info.connectivity,
       websocket: info.websocket,
       firmware: info.firmware,
+      signalText: signal.signalText,
     });
+    refreshNetworkIndicators();
 
     if (typeof info.leftHanded === 'boolean') {
       setHandedness(info.leftHanded ? 'left' : 'right');

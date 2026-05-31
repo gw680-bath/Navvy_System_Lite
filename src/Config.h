@@ -22,7 +22,7 @@ struct AppConfig {
   float batteryReferenceVoltage = 3.3f;
 
   uint16_t rcFailsafeTimeoutMs = 120;
-  uint16_t telemetryIntervalMs = 200;
+  uint16_t telemetryIntervalMs = 120;
   uint16_t webControlTimeoutMs = 500;
 
   int neutralUs = 1500;

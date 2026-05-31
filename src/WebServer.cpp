@@ -575,6 +575,19 @@ bool NavvyWebServer::begin(const AppConfig &config) {
     doc["ssid"] = activeNetworkName(config_);
     doc["connectivity"] = (config_.wifiMode == WifiMode::Station && WiFi.status() == WL_CONNECTED) ? "Station" : "Access Point";
     doc["websocket"] = clientConnected() ? "Connected" : "Disconnected";
+    const bool stationConnected = config_.wifiMode == WifiMode::Station && WiFi.status() == WL_CONNECTED;
+    const int rssiDbm = stationConnected ? WiFi.RSSI() : 0;
+    int signalBars = 0;
+    int signalQuality = 0;
+    if (stationConnected) {
+      signalQuality = constrain((rssiDbm + 100) * 2, 0, 100);
+      signalBars = signalQuality >= 85 ? 4 : signalQuality >= 65 ? 3 : signalQuality >= 40 ? 2 : signalQuality >= 15 ? 1 : 0;
+    } else if (config_.wifiMode == WifiMode::AccessPoint) {
+      signalBars = clientConnected() ? 3 : 1;
+    }
+    doc["wifiRssiDbm"] = stationConnected ? rssiDbm : 0;
+    doc["wifiSignalBars"] = signalBars;
+    doc["wifiSignalQuality"] = signalQuality;
     doc["firmware"] = "0.1.0";
     doc["leftHanded"] = loadLeftHanded();
 

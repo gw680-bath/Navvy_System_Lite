@@ -17,6 +17,12 @@
     <button class="arm-pill arm-pill-disarmed" id="armPill" type="button" aria-live="polite" aria-pressed="false">DISARMED</button>
 
     <div class="chrome-actions">
+      <div class="net-chip" id="netChip" aria-label="Connectivity status">
+        <span class="net-chip-text" id="netChipText">Connecting...</span>
+        <span class="signal-bars" id="signalBars" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </span>
+      </div>
       <button id="themeBtn" class="icon-btn" type="button" aria-label="Toggle theme">
         <span aria-hidden="true">☾</span>
       </button>
@@ -30,6 +36,7 @@
       <div class="summary-line"><span>SSID:</span><strong id="wifiSsidInfo">--</strong></div>
       <div class="summary-line"><span>FIRMWARE:</span><strong id="firmwareVersion">0.1.0</strong></div>
       <div class="summary-line"><span>CONNECTIVITY:</span><strong id="connectivityState">--</strong></div>
+      <div class="summary-line summary-line-signal"><span>SIGNAL:</span><strong><span id="signalValue">--</span><span class="signal-bars inline" id="settingsSignalBars" aria-hidden="true"><span></span><span></span><span></span><span></span></span></strong></div>
       <div class="summary-line"><span>WEB SOCKET:</span><strong id="websocketState">--</strong></div>
     </section>
 

@@ -16,6 +16,12 @@
     <button class="arm-pill arm-pill-disarmed" id="armPill" type="button" aria-live="polite" aria-pressed="false">DISARMED</button>
 
     <div class="chrome-actions">
+      <div class="net-chip" id="netChip" aria-label="Connectivity status">
+        <span class="net-chip-text" id="netChipText">Connecting...</span>
+        <span class="signal-bars" id="signalBars" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </span>
+      </div>
       <a class="icon-btn icon-link" href="/settings.html" aria-label="Open settings">
         <span aria-hidden="true">⚙</span>
       </a>
@@ -53,8 +59,6 @@
           <div class="joystick-frame" id="joystickArea" role="application" aria-label="Joystick control pad" tabindex="0">
             <div class="joystick-cross"></div>
             <div class="joystick-thumb" id="joystickThumb"></div>
-            <div class="joystick-mark mark-left" aria-hidden="true"></div>
-            <div class="joystick-mark mark-right" aria-hidden="true"></div>
           </div>
 
           <div class="drive-meter drive-meter-right" aria-label="Throttle right meter">
