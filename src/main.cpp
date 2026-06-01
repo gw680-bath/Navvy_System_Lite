@@ -81,7 +81,7 @@ void loop() {
 
   const RcInputState rcState = pwmInput.snapshot(nowMs);
   const ControlOutput output = controlLogic.resolve(rcState, nowMs);
-  pwmOutput.writeUs(output.steeringUs, output.throttleUs);
+  pwmOutput.writeUs(output.driveLeftUs, output.driveRightUs);
 
   if (telemetry.due(nowMs)) {
     const float batteryVoltage = readBatteryVoltage(appConfig);

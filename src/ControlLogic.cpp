@@ -170,8 +170,8 @@ ControlOutput ControlLogic::resolve(const RcInputState &rcState, uint32_t nowMs)
   if (!armed_ || source == ControlSource::Failsafe) {
     output.steeringUs = config_.neutralUs;
     output.throttleUs = config_.neutralUs;
-    output.driveLeftUs = config_.neutralUs;
-    output.driveRightUs = config_.neutralUs;
+    output.driveLeftUs = 0;
+    output.driveRightUs = 0;
     return output;
   }
 

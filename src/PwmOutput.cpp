@@ -34,31 +34,34 @@ bool PwmOutput::begin(const AppConfig &config) {
 }
 
 int PwmOutput::clampUs(int pulseUs) const {
+  if (pulseUs == 0) {
+    return 0;
+  }
   if (pulseUs < config_.minUs || pulseUs > config_.maxUs) {
     return config_.neutralUs;
   }
   return pulseUs;
 }
 
-void PwmOutput::writeUs(int steeringUs, int throttleUs) {
+void PwmOutput::writeUs(int leftUs, int rightUs) {
   if (!started_) {
     return;
   }
 
-  const uint32_t steeringDuty = usToDuty(static_cast<uint32_t>(clampUs(steeringUs)));
-  const uint32_t throttleDuty = usToDuty(static_cast<uint32_t>(clampUs(throttleUs)));
+  const uint32_t leftDuty = usToDuty(static_cast<uint32_t>(clampUs(leftUs)));
+  const uint32_t rightDuty = usToDuty(static_cast<uint32_t>(clampUs(rightUs)));
 
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
-  ledcWriteChannel(kSteeringChannel, steeringDuty);
-  ledcWriteChannel(kThrottleChannel, throttleDuty);
+  ledcWriteChannel(kSteeringChannel, leftDuty);
+  ledcWriteChannel(kThrottleChannel, rightDuty);
 #else
-  ledcWrite(kSteeringChannel, steeringDuty);
-  ledcWrite(kThrottleChannel, throttleDuty);
+  ledcWrite(kSteeringChannel, leftDuty);
+  ledcWrite(kThrottleChannel, rightDuty);
 #endif
 }
 
 void PwmOutput::neutral() {
-  writeUs(config_.neutralUs, config_.neutralUs);
+  writeUs(0, 0);
 }
 
 }  // namespace navvy

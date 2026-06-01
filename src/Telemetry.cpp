@@ -21,7 +21,7 @@ String Telemetry::buildJson(const ControlOutput &output,
                             const RcInputState &rcState,
                             float batteryVoltage,
                             uint32_t nowMs) const {
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<384> doc;
   doc["ms"] = nowMs;
   doc["armed"] = output.armed;
   doc["source"] = static_cast<uint8_t>(output.currentSource);
@@ -31,6 +31,8 @@ String Telemetry::buildJson(const ControlOutput &output,
   doc["throttleUs"] = output.displayThrottleUs;
   doc["throttleLeftUs"] = output.displayDriveLeftUs;
   doc["throttleRightUs"] = output.displayDriveRightUs;
+  doc["motorThrottleLeftUs"] = output.driveLeftUs;
+  doc["motorThrottleRightUs"] = output.driveRightUs;
   doc["motorSteeringUs"] = output.steeringUs;
   doc["motorThrottleUs"] = output.throttleUs;
   if (batteryVoltage > 0.0f) {

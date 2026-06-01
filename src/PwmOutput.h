@@ -9,7 +9,7 @@ namespace navvy {
 class PwmOutput {
  public:
   bool begin(const AppConfig &config);
-  void writeUs(int steeringUs, int throttleUs);
+  void writeUs(int leftUs, int rightUs);
   void neutral();
 
  private:

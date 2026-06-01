@@ -13,8 +13,8 @@ enum class WifiMode : uint8_t {
 struct AppConfig {
   uint8_t rcCh1Pin = 34;
   uint8_t rcCh2Pin = 35;
-  uint8_t pwmSteeringPin = 25;
-  uint8_t pwmThrottlePin = 26;
+  uint8_t pwmSteeringPin = 15;
+  uint8_t pwmThrottlePin = 2;
   uint8_t batterySensePin = 36;
 
   bool batterySenseEnabled = false;
@@ -57,6 +57,10 @@ inline AppConfig ConfigStore::load() {
   config.rcCh2Pin = preferences_.getUChar("rc2", config.rcCh2Pin);
   config.pwmSteeringPin = preferences_.getUChar("stOut", config.pwmSteeringPin);
   config.pwmThrottlePin = preferences_.getUChar("thOut", config.pwmThrottlePin);
+  if (config.pwmSteeringPin == 25 && config.pwmThrottlePin == 26) {
+    config.pwmSteeringPin = 15;
+    config.pwmThrottlePin = 2;
+  }
   config.batterySensePin = preferences_.getUChar("batPin", config.batterySensePin);
   config.batterySenseEnabled = preferences_.getBool("batEn", config.batterySenseEnabled);
   config.batteryDividerRatio = preferences_.getFloat("batDiv", config.batteryDividerRatio);

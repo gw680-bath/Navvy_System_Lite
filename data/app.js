@@ -265,7 +265,7 @@
 
   function setHint(text) {
     const hint = $('controlHint');
-    if (hint) hint.textContent = text;
+    if (hint) hint.textContent = '';
   }
 
   function positionThumb(x, y) {
@@ -340,20 +340,18 @@
     if (!fillNode || !valueNode) return;
 
     const percent = Math.round(clamp(value, -1, 1) * 100);
-    fillNode.style.height = `${Math.abs(percent) * 0.5}%`;
+    fillNode.style.height = `${Math.abs(percent) * 0.49}%`;
 
     if (percent >= 0) {
       fillNode.style.top = 'auto';
       fillNode.style.bottom = '50%';
       fillNode.classList.add('is-forward');
       fillNode.classList.remove('is-reverse');
-      fillNode.style.borderRadius = '0 0 16px 16px';
     } else {
       fillNode.style.bottom = 'auto';
       fillNode.style.top = '50%';
       fillNode.classList.add('is-reverse');
       fillNode.classList.remove('is-forward');
-      fillNode.style.borderRadius = '16px 16px 0 0';
     }
 
     valueNode.textContent = `${percent >= 0 ? '+' : ''}${percent}%`;
@@ -377,17 +375,15 @@
 
     const applyTankFill = (fillNode, value) => {
       if (!fillNode) return;
-      fillNode.style.height = `${Math.abs(value) * 50}%`;
+      fillNode.style.height = `${Math.abs(value) * 49}%`;
+      fillNode.classList.toggle('is-forward', value >= 0);
+      fillNode.classList.toggle('is-reverse', value < 0);
       if (value >= 0) {
         fillNode.style.top = 'auto';
         fillNode.style.bottom = '50%';
-        fillNode.classList.remove('is-reverse');
-        fillNode.style.borderRadius = '0 0 10px 10px';
       } else {
         fillNode.style.bottom = 'auto';
         fillNode.style.top = '50%';
-        fillNode.classList.add('is-reverse');
-        fillNode.style.borderRadius = '10px 10px 0 0';
       }
     };
 
@@ -612,7 +608,7 @@
         const button = event.target.closest('button');
         if (!button) return;
         setMode(button.dataset.mode);
-        setHint(state.mode === 'joystick' ? 'Joystick mode active. Use touch, mouse, or arrow keys.' : 'Tank mode active. Use both sliders together for drive control.');
+        setHint('');
         send({ type: 'mode', mode: state.mode });
       });
     }
@@ -666,7 +662,7 @@
         state.activePointer = event.pointerId;
         const point = pointerToXY(event);
         applyJoystickTarget(point.x, point.y);
-        setHint('Dragging joystick. Release to return to neutral.');
+        setHint('');
       });
 
       joystickArea.addEventListener('pointermove', (event) => {
@@ -679,7 +675,7 @@
         if (state.activePointer !== event.pointerId) return;
         state.activePointer = null;
         applyJoystickTarget(0, 0);
-        setHint('Joystick returned to neutral.');
+        setHint('');
       };
 
       joystickArea.addEventListener('pointerup', releasePointer);
