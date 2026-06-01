@@ -3,6 +3,9 @@
 namespace navvy {
 
 namespace {
+constexpr int kOutputDeadzoneUs = 10;
+constexpr int kEngagementThresholdUs = 10;
+
 float usToNorm(int pulseUs, int neutralUs, const AppConfig &config) {
   const int positiveSpan = config.maxUs - neutralUs;
   const int negativeSpan = neutralUs - config.minUs;
@@ -25,14 +28,18 @@ struct DriveMix {
   int rightUs = 1500;
 };
 
-DriveMix mixDriveFromControl(int steeringUs, int throttleUs, int neutralUs, const AppConfig &config) {
-  const float steerNorm = usToNorm(steeringUs, neutralUs, config);
-  const float throttleNorm = usToNorm(throttleUs, neutralUs, config);
+DriveMix mixDriveFromControl(int steeringUs,
+                             int throttleUs,
+                             int steeringNeutralUs,
+                             int throttleNeutralUs,
+                             const AppConfig &config) {
+  const float steerNorm = usToNorm(steeringUs, steeringNeutralUs, config);
+  const float throttleNorm = usToNorm(throttleUs, throttleNeutralUs, config);
   const float leftNorm = constrain(throttleNorm + steerNorm, -1.0f, 1.0f);
   const float rightNorm = constrain(throttleNorm - steerNorm, -1.0f, 1.0f);
   DriveMix mix;
-  mix.leftUs = normToUs(leftNorm, neutralUs, config);
-  mix.rightUs = normToUs(rightNorm, neutralUs, config);
+  mix.leftUs = normToUs(leftNorm, config.neutralUs, config);
+  mix.rightUs = normToUs(rightNorm, config.neutralUs, config);
   return mix;
 }
 
@@ -67,6 +74,11 @@ void ControlLogic::begin(const AppConfig &config) {
   webMode_ = ControlMode::Joystick;
   webConnected_ = false;
   lastWebUpdateMs_ = 0;
+  lastWebEngagedMs_ = 0;
+  rcCalibrationStartedMs_ = 0;
+  rcCalibrationSamples_ = 0;
+  rcCalibrationSumCh1_ = 0;
+  rcCalibrationSumCh2_ = 0;
 }
 
 bool ControlLogic::isNeutral(int pulseUs) const {
@@ -74,11 +86,52 @@ bool ControlLogic::isNeutral(int pulseUs) const {
 }
 
 int ControlLogic::clampUs(int pulseUs) const {
-  return constrain(pulseUs, config_.minUs, config_.maxUs);
+  if (pulseUs < config_.minUs || pulseUs > config_.maxUs) {
+    return config_.neutralUs;
+  }
+  return pulseUs;
 }
 
 bool ControlLogic::webControlFresh(uint32_t nowMs) const {
   return webConnected_ && (nowMs - lastWebUpdateMs_ <= config_.webControlTimeoutMs);
+}
+
+bool ControlLogic::webControlEngaged(uint32_t nowMs) const {
+  return webConnected_ && (nowMs - lastWebEngagedMs_ <= config_.webControlTimeoutMs);
+}
+
+void ControlLogic::updateRcNeutralCalibration(const RcInputState &rcState, uint32_t nowMs) const {
+  constexpr uint32_t kCalibrationWindowMs = 1500;
+  constexpr uint16_t kCalibrationSamplesTarget = 48;
+  constexpr int kCalibrationMaxDeviationUs = 220;
+
+  if (!rcState.signalValid) {
+    return;
+  }
+
+  if (rcCalibrationStartedMs_ == 0) {
+    rcCalibrationStartedMs_ = nowMs;
+  }
+
+  const bool insideWindow = (nowMs - rcCalibrationStartedMs_) <= kCalibrationWindowMs;
+  const bool nearCenter = abs(rcState.ch1Us - config_.neutralUs) <= kCalibrationMaxDeviationUs
+      && abs(rcState.ch2Us - config_.neutralUs) <= kCalibrationMaxDeviationUs;
+
+  if (insideWindow && rcCalibrationSamples_ < kCalibrationSamplesTarget && nearCenter) {
+    rcCalibrationSumCh1_ += rcState.ch1Us;
+    rcCalibrationSumCh2_ += rcState.ch2Us;
+    rcCalibrationSamples_++;
+    rcNeutralCh1Us_ = static_cast<int>(rcCalibrationSumCh1_ / rcCalibrationSamples_);
+    rcNeutralCh2Us_ = static_cast<int>(rcCalibrationSumCh2_ / rcCalibrationSamples_);
+    rcNeutralCaptured_ = true;
+    return;
+  }
+
+  if (!rcNeutralCaptured_) {
+    rcNeutralCh1Us_ = config_.neutralUs;
+    rcNeutralCh2Us_ = config_.neutralUs;
+    rcNeutralCaptured_ = true;
+  }
 }
 
 void ControlLogic::applyWebCommand(const WebCommand &command, uint32_t nowMs) {
@@ -97,10 +150,25 @@ void ControlLogic::applyWebCommand(const WebCommand &command, uint32_t nowMs) {
       webSteeringUs_ = controlMix.steeringUs;
       webThrottleUs_ = controlMix.throttleUs;
     } else {
-      const DriveMix driveMix = mixDriveFromControl(webSteeringUs_, webThrottleUs_, config_.neutralUs, config_);
+      const DriveMix driveMix = mixDriveFromControl(
+          webSteeringUs_,
+          webThrottleUs_,
+          config_.neutralUs,
+          config_.neutralUs,
+          config_);
       webDriveLeftUs_ = driveMix.leftUs;
       webDriveRightUs_ = driveMix.rightUs;
     }
+
+    const bool engaged = command.hasDrive
+      ? (abs(webDriveLeftUs_ - config_.neutralUs) > kEngagementThresholdUs
+        || abs(webDriveRightUs_ - config_.neutralUs) > kEngagementThresholdUs)
+      : (abs(webSteeringUs_ - config_.neutralUs) > kEngagementThresholdUs
+        || abs(webThrottleUs_ - config_.neutralUs) > kEngagementThresholdUs);
+    if (engaged) {
+      lastWebEngagedMs_ = nowMs;
+    }
+
     lastWebUpdateMs_ = nowMs;
   }
 
@@ -136,28 +204,32 @@ ControlOutput ControlLogic::resolve(const RcInputState &rcState, uint32_t nowMs)
   int sourceDriveRightUs = config_.neutralUs;
   ControlSource source = ControlSource::Failsafe;
 
-  if (requestedSource_ == ControlSource::Rc) {
-    if (rcState.signalValid) {
-      source = ControlSource::Rc;
-      const_cast<ControlLogic *>(this)->rcNeutralCh1Us_ = rcNeutralCaptured_ ? rcNeutralCh1Us_ : rcState.ch1Us;
-      const_cast<ControlLogic *>(this)->rcNeutralCh2Us_ = rcNeutralCaptured_ ? rcNeutralCh2Us_ : rcState.ch2Us;
-      const_cast<ControlLogic *>(this)->rcNeutralCaptured_ = true;
-      sourceSteeringUs = clampUs(rcState.ch1Us);
-      sourceThrottleUs = clampUs(rcState.ch2Us);
-      const DriveMix driveMix = mixDriveFromControl(sourceSteeringUs, sourceThrottleUs, rcNeutralCh1Us_, config_);
-      sourceDriveLeftUs = driveMix.leftUs;
-      sourceDriveRightUs = driveMix.rightUs;
-    }
-  } else if (requestedSource_ == ControlSource::Web) {
-    if (!webControlFresh(nowMs)) {
-      source = ControlSource::Failsafe;
-    } else {
-      source = ControlSource::Web;
-      sourceSteeringUs = webSteeringUs_;
-      sourceThrottleUs = webThrottleUs_;
-      sourceDriveLeftUs = webDriveLeftUs_;
-      sourceDriveRightUs = webDriveRightUs_;
-    }
+  if (rcState.signalValid) {
+    updateRcNeutralCalibration(rcState, nowMs);
+  }
+
+  const bool rcActive = rcState.signalValid;
+  const bool webActive = webControlFresh(nowMs)
+      && (webControlEngaged(nowMs) || requestedSource_ == ControlSource::Web);
+
+  if (webActive) {
+    source = ControlSource::Web;
+    sourceSteeringUs = webSteeringUs_;
+    sourceThrottleUs = webThrottleUs_;
+    sourceDriveLeftUs = webDriveLeftUs_;
+    sourceDriveRightUs = webDriveRightUs_;
+  } else if (rcActive) {
+    source = ControlSource::Rc;
+    sourceSteeringUs = clampUs(rcState.ch1Us);
+    sourceThrottleUs = clampUs(rcState.ch2Us);
+    const DriveMix driveMix = mixDriveFromControl(
+        sourceSteeringUs,
+        sourceThrottleUs,
+        rcNeutralCh1Us_,
+        rcNeutralCh2Us_,
+        config_);
+    sourceDriveLeftUs = driveMix.leftUs;
+    sourceDriveRightUs = driveMix.rightUs;
   }
 
   output.currentSource = source;
@@ -173,6 +245,13 @@ ControlOutput ControlLogic::resolve(const RcInputState &rcState, uint32_t nowMs)
     output.driveLeftUs = 0;
     output.driveRightUs = 0;
     return output;
+  }
+
+  if (abs(sourceDriveLeftUs - config_.neutralUs) <= kOutputDeadzoneUs) {
+    sourceDriveLeftUs = config_.neutralUs;
+  }
+  if (abs(sourceDriveRightUs - config_.neutralUs) <= kOutputDeadzoneUs) {
+    sourceDriveRightUs = config_.neutralUs;
   }
 
   output.steeringUs = sourceSteeringUs;

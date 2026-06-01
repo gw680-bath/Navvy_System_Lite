@@ -753,6 +753,11 @@ void NavvyWebServer::handleWebSocketEvent(uint8_t clientId, WStype_t type, uint8
         command.hasControl = true;
         command.steeringUs = doc["steeringUs"] | 1500;
         command.throttleUs = doc["throttleUs"] | 1500;
+        if (doc.containsKey("driveLeftUs") && doc.containsKey("driveRightUs")) {
+          command.hasDrive = true;
+          command.driveLeftUs = doc["driveLeftUs"] | 1500;
+          command.driveRightUs = doc["driveRightUs"] | 1500;
+        }
         const char *modeName = doc["mode"] | "joystick";
         command.mode = (strcmp(modeName, "tank") == 0) ? ControlMode::Tank : ControlMode::Joystick;
       }

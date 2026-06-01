@@ -74,7 +74,7 @@
 
   function sourceLabel(source, rcOk) {
     if (source === 2) return 'Control App';
-    if (source === 1 && rcOk) return 'RC Controller';
+    if (source === 1 && rcOk) return 'RC Receiver';
     return 'No RC Signal';
   }
 

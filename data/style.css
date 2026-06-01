@@ -467,6 +467,8 @@ body[data-handed="left"] .settings-actions{justify-content:flex-start}
 body[data-page="main"] .foot{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(180deg, transparent, rgba(0,0,0,.14));backdrop-filter:blur(4px)}
 
 @media (orientation:landscape){
+  .summary-tile{position:relative;z-index:6}
+  .mode-inline,.segmented,#modeSeg{position:relative;z-index:7}
   .workspace{padding-bottom:12px}
   .workspace-main{max-width:920px}
   .workspace-main{grid-template-columns:minmax(230px, .9fr) minmax(280px, 1.1fr)}

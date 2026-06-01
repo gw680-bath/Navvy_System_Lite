@@ -68,6 +68,8 @@ class ControlLogic {
  private:
   bool isNeutral(int pulseUs) const;
   bool webControlFresh(uint32_t nowMs) const;
+  bool webControlEngaged(uint32_t nowMs) const;
+  void updateRcNeutralCalibration(const RcInputState &rcState, uint32_t nowMs) const;
   int clampUs(int pulseUs) const;
 
   AppConfig config_;
@@ -78,11 +80,16 @@ class ControlLogic {
   ControlMode webMode_ = ControlMode::Joystick;
   bool webConnected_ = false;
   uint32_t lastWebUpdateMs_ = 0;
+  uint32_t lastWebEngagedMs_ = 0;
   int webDriveLeftUs_ = 1500;
   int webDriveRightUs_ = 1500;
   mutable int rcNeutralCh1Us_ = 1500;
   mutable int rcNeutralCh2Us_ = 1500;
   mutable bool rcNeutralCaptured_ = false;
+  mutable uint32_t rcCalibrationStartedMs_ = 0;
+  mutable uint16_t rcCalibrationSamples_ = 0;
+  mutable int32_t rcCalibrationSumCh1_ = 0;
+  mutable int32_t rcCalibrationSumCh2_ = 0;
 };
 
 }  // namespace navvy
