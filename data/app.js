@@ -296,6 +296,22 @@
     sendControl(true);
   }
 
+  function sendTankZero() {
+    state.throttleLeft = 0;
+    state.throttleRight = 0;
+    state.steerUs = 1500;
+    state.throttleUs = 1500;
+    const leftSlider = $('leftSlider');
+    const rightSlider = $('rightSlider');
+    if (leftSlider) leftSlider.value = '0';
+    if (rightSlider) rightSlider.value = '0';
+    const pointers = tankPointerState();
+    pointers.left = null;
+    pointers.right = null;
+    syncTankControlsFromDrive();
+    sendControl(true, true);
+  }
+
   function setTankSideFromPointer(side, event, trackNode, sliderNode) {
     const pointers = tankPointerState();
     if (event.type === 'pointerdown') {
@@ -324,25 +340,21 @@
 
   function releaseTankSide(side, event, sliderNode) {
     const pointers = tankPointerState();
-    if (pointers[side] !== event.pointerId) {
+    if (event && typeof event.pointerId === 'number' && pointers[side] !== event.pointerId) {
       return;
     }
 
-    pointers[side] = null;
-    if (side === 'left') {
-      state.throttleLeft = 0;
-    } else {
-      state.throttleRight = 0;
-    }
-    if (sliderNode) {
-      sliderNode.value = '0';
-    }
+    pointers.left = null;
+    pointers.right = null;
     if (sliderNode && sliderNode.releasePointerCapture) {
       try {
         sliderNode.releasePointerCapture(event.pointerId);
       } catch (_) {}
     }
-    commitTankControl();
+    sendTankZero();
+    if (event && event.preventDefault) {
+      event.preventDefault();
+    }
   }
 
   function setSignedMeter(fillNode, valueNode, value) {
@@ -464,13 +476,10 @@
   }
 
   function sendControl(force, claimSource) {
-    const now = performance.now();
-    if (!force && now - state.lastSendAt < 16) return;
-    state.lastSendAt = now;
-
     if (claimSource !== false) {
       activateWebControl();
     }
+    state.lastSendAt = performance.now();
     const payload = {
       type: 'control',
       mode: state.mode,
@@ -731,6 +740,10 @@
     const rightSlider = $('rightSlider');
     if (leftSlider) {
       leftSlider.addEventListener('input', updateTankVisuals);
+      leftSlider.addEventListener('pointerup', (event) => releaseTankSide('left', event, leftSlider));
+      leftSlider.addEventListener('pointercancel', (event) => releaseTankSide('left', event, leftSlider));
+      leftSlider.addEventListener('touchend', (event) => releaseTankSide('left', event, leftSlider), { passive: false });
+      leftSlider.addEventListener('mouseup', (event) => releaseTankSide('left', event, leftSlider));
       const leftTrack = leftSlider.closest('.tank-track');
       if (leftTrack) {
         leftTrack.addEventListener('pointerdown', (event) => {
@@ -748,6 +761,10 @@
     }
     if (rightSlider) {
       rightSlider.addEventListener('input', updateTankVisuals);
+      rightSlider.addEventListener('pointerup', (event) => releaseTankSide('right', event, rightSlider));
+      rightSlider.addEventListener('pointercancel', (event) => releaseTankSide('right', event, rightSlider));
+      rightSlider.addEventListener('touchend', (event) => releaseTankSide('right', event, rightSlider), { passive: false });
+      rightSlider.addEventListener('mouseup', (event) => releaseTankSide('right', event, rightSlider));
       const rightTrack = rightSlider.closest('.tank-track');
       if (rightTrack) {
         rightTrack.addEventListener('pointerdown', (event) => {
@@ -763,6 +780,25 @@
         rightTrack.addEventListener('lostpointercapture', (event) => releaseTankSide('right', event, rightSlider));
       }
     }
+
+    window.addEventListener('pointerup', () => {
+      const pointers = tankPointerState();
+      if (state.mode === 'tank' && (pointers.left !== null || pointers.right !== null)) {
+        sendTankZero();
+      }
+    });
+    window.addEventListener('touchend', () => {
+      const pointers = tankPointerState();
+      if (state.mode === 'tank' && (pointers.left !== null || pointers.right !== null)) {
+        sendTankZero();
+      }
+    }, { passive: false });
+    window.addEventListener('mouseup', () => {
+      const pointers = tankPointerState();
+      if (state.mode === 'tank' && (pointers.left !== null || pointers.right !== null)) {
+        sendTankZero();
+      }
+    });
 
     document.addEventListener('keydown', (event) => {
       if (event.altKey || event.ctrlKey || event.metaKey) return;

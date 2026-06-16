@@ -52,6 +52,9 @@ class PwmInput {
   uint32_t ch1LastPulseMs_ = 0;
   uint32_t ch2LastPulseMs_ = 0;
   uint32_t lastMovementMs_ = 0;
+  uint32_t startupMs_ = 0;
+  uint8_t ch1GoodFrames_ = 0;
+  uint8_t ch2GoodFrames_ = 0;
   bool ch1Seen_ = false;
   bool ch2Seen_ = false;
   uint32_t lastUpdateMs_ = 0;

@@ -5,6 +5,7 @@ namespace navvy {
 namespace {
 constexpr int kOutputDeadzoneUs = 10;
 constexpr int kEngagementThresholdUs = 10;
+constexpr uint16_t kWebCommandHoldMs = 80;
 constexpr uint8_t kOutputSmoothingPreviousWeight = 3;
 constexpr uint8_t kOutputSmoothingTargetWeight = 1;
 
@@ -15,6 +16,14 @@ float usToNorm(int pulseUs, int neutralUs, const AppConfig &config) {
     return positiveSpan > 0 ? static_cast<float>(pulseUs - neutralUs) / positiveSpan : 0.0f;
   }
   return negativeSpan > 0 ? static_cast<float>(pulseUs - neutralUs) / negativeSpan : 0.0f;
+}
+
+float applyNormDeadzone(float value) {
+  constexpr float kInputDeadzone = 0.02f;
+  if (fabsf(value) <= kInputDeadzone) {
+    return 0.0f;
+  }
+  return constrain(value, -1.0f, 1.0f);
 }
 
 int normToUs(float value, int neutralUs, const AppConfig &config) {
@@ -35,10 +44,15 @@ DriveMix mixDriveFromControl(int steeringUs,
                              int steeringNeutralUs,
                              int throttleNeutralUs,
                              const AppConfig &config) {
-  const float steerNorm = usToNorm(steeringUs, steeringNeutralUs, config);
-  const float throttleNorm = usToNorm(throttleUs, throttleNeutralUs, config);
-  const float leftNorm = constrain(throttleNorm + steerNorm, -1.0f, 1.0f);
-  const float rightNorm = constrain(throttleNorm - steerNorm, -1.0f, 1.0f);
+  const float steerNorm = applyNormDeadzone(usToNorm(steeringUs, steeringNeutralUs, config));
+  const float throttleNorm = applyNormDeadzone(usToNorm(throttleUs, throttleNeutralUs, config));
+  float leftNorm = throttleNorm + steerNorm;
+  float rightNorm = throttleNorm - steerNorm;
+  const float maxMagnitude = fmaxf(fabsf(leftNorm), fabsf(rightNorm));
+  if (maxMagnitude > 1.0f) {
+    leftNorm /= maxMagnitude;
+    rightNorm /= maxMagnitude;
+  }
   DriveMix mix;
   mix.leftUs = normToUs(leftNorm, config.neutralUs, config);
   mix.rightUs = normToUs(rightNorm, config.neutralUs, config);
@@ -51,9 +65,9 @@ struct ControlMix {
 };
 
 ControlMix mixControlFromDrive(int leftUs, int rightUs, int neutralUs, const AppConfig &config) {
-  const float leftNorm = usToNorm(leftUs, neutralUs, config);
-  const float rightNorm = usToNorm(rightUs, neutralUs, config);
-  const float steerNorm = constrain((rightNorm - leftNorm) * 0.5f, -1.0f, 1.0f);
+  const float leftNorm = applyNormDeadzone(usToNorm(leftUs, neutralUs, config));
+  const float rightNorm = applyNormDeadzone(usToNorm(rightUs, neutralUs, config));
+  const float steerNorm = constrain((leftNorm - rightNorm) * 0.5f, -1.0f, 1.0f);
   const float throttleNorm = constrain((leftNorm + rightNorm) * 0.5f, -1.0f, 1.0f);
   ControlMix mix;
   mix.steeringUs = normToUs(steerNorm, neutralUs, config);
@@ -111,7 +125,7 @@ int ControlLogic::smoothOutputUs(int previousUs, int targetUs) const {
 }
 
 bool ControlLogic::webControlFresh(uint32_t nowMs) const {
-  return webConnected_ && (nowMs - lastWebUpdateMs_ <= config_.webControlTimeoutMs);
+  return webConnected_ && lastWebUpdateMs_ != 0 && (nowMs - lastWebUpdateMs_ <= kWebCommandHoldMs);
 }
 
 bool ControlLogic::webControlEngaged(uint32_t nowMs) const {

@@ -11,6 +11,8 @@ constexpr uint16_t kPulseFreshMs = 100;
 constexpr uint16_t kNeutralWindowUs = 50;
 constexpr uint16_t kMovementThresholdUs = 20;
 constexpr uint16_t kNeutralMovementTimeoutMs = 200;
+constexpr uint16_t kStartupSettleMs = 400;
+constexpr uint8_t kGoodFramesRequired = 6;
 }
 
 bool PwmInput::begin(const AppConfig &config) {
@@ -25,7 +27,8 @@ bool PwmInput::begin(const AppConfig &config) {
   attachInterruptArg(digitalPinToInterrupt(ch1_.pin), &PwmInput::handleEdge, &ch1_, CHANGE);
   attachInterruptArg(digitalPinToInterrupt(ch2_.pin), &PwmInput::handleEdge, &ch2_, CHANGE);
 
-  lastUpdateMs_ = millis();
+  startupMs_ = millis();
+  lastUpdateMs_ = startupMs_;
   available_ = false;
   ch1SmoothedUs_ = config_.neutralUs;
   ch2SmoothedUs_ = config_.neutralUs;
@@ -34,6 +37,8 @@ bool PwmInput::begin(const AppConfig &config) {
   ch1LastPulseMs_ = 0;
   ch2LastPulseMs_ = 0;
   lastMovementMs_ = 0;
+  ch1GoodFrames_ = 0;
+  ch2GoodFrames_ = 0;
   ch1Seen_ = false;
   ch2Seen_ = false;
   return true;
@@ -61,11 +66,17 @@ void PwmInput::update(uint32_t nowMs) {
   if (ch1Updated) {
     ch1SmoothedUs_ = smoothPulse(ch1SmoothedUs_, sanitizePulse(ch1PulseUs), ch1Seen_);
     ch1LastPulseMs_ = nowMs;
+    if (ch1GoodFrames_ < kGoodFramesRequired) {
+      ch1GoodFrames_++;
+    }
     ch1Seen_ = true;
   }
   if (ch2Updated) {
     ch2SmoothedUs_ = smoothPulse(ch2SmoothedUs_, sanitizePulse(ch2PulseUs), ch2Seen_);
     ch2LastPulseMs_ = nowMs;
+    if (ch2GoodFrames_ < kGoodFramesRequired) {
+      ch2GoodFrames_++;
+    }
     ch2Seen_ = true;
   }
 
@@ -81,10 +92,18 @@ void PwmInput::update(uint32_t nowMs) {
   const bool pulseFresh = ch1Seen_ && ch2Seen_
       && channelPulseFresh(ch1LastPulseMs_, nowMs)
       && channelPulseFresh(ch2LastPulseMs_, nowMs);
+  if (!pulseFresh) {
+    ch1GoodFrames_ = 0;
+    ch2GoodFrames_ = 0;
+  }
+
+  const bool startupSettled = nowMs - startupMs_ >= kStartupSettleMs;
+  const bool enoughGoodFrames = ch1GoodFrames_ >= kGoodFramesRequired
+      && ch2GoodFrames_ >= kGoodFramesRequired;
   const bool movementRecent = lastMovementMs_ != 0
       && (nowMs - lastMovementMs_ <= kNeutralMovementTimeoutMs);
   const bool nearNeutral = inputsNearNeutral();
-  available_ = pulseFresh && (!nearNeutral || movementRecent);
+  available_ = startupSettled && enoughGoodFrames && pulseFresh && (!nearNeutral || movementRecent);
 }
 
 int PwmInput::sanitizePulse(uint16_t pulseUs) const {
