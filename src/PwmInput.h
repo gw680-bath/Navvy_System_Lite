@@ -37,12 +37,25 @@ class PwmInput {
 
   static void IRAM_ATTR handleEdge(void *arg);
   int sanitizePulse(uint16_t pulseUs) const;
+  int smoothPulse(int previousUs, int currentUs, bool hadPrevious) const;
+  bool channelPulseFresh(uint32_t pulseMs, uint32_t nowMs) const;
+  bool inputsNearNeutral() const;
+  bool inputsMoved(int ch1Us, int ch2Us) const;
 
   AppConfig config_;
   ChannelCapture ch1_;
   ChannelCapture ch2_;
-  volatile uint32_t lastUpdateMs_ = 0;
-  volatile bool available_ = false;
+  int ch1SmoothedUs_ = 1500;
+  int ch2SmoothedUs_ = 1500;
+  int lastMovementCh1Us_ = 1500;
+  int lastMovementCh2Us_ = 1500;
+  uint32_t ch1LastPulseMs_ = 0;
+  uint32_t ch2LastPulseMs_ = 0;
+  uint32_t lastMovementMs_ = 0;
+  bool ch1Seen_ = false;
+  bool ch2Seen_ = false;
+  uint32_t lastUpdateMs_ = 0;
+  bool available_ = false;
 };
 
 }  // namespace navvy

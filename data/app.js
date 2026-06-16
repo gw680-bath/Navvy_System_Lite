@@ -293,7 +293,7 @@
 
   function commitTankControl() {
     syncTankControlsFromDrive();
-    sendControl();
+    sendControl(true);
   }
 
   function setTankSideFromPointer(side, event, trackNode, sliderNode) {
@@ -329,11 +329,20 @@
     }
 
     pointers[side] = null;
+    if (side === 'left') {
+      state.throttleLeft = 0;
+    } else {
+      state.throttleRight = 0;
+    }
+    if (sliderNode) {
+      sliderNode.value = '0';
+    }
     if (sliderNode && sliderNode.releasePointerCapture) {
       try {
         sliderNode.releasePointerCapture(event.pointerId);
       } catch (_) {}
     }
+    commitTankControl();
   }
 
   function setSignedMeter(fillNode, valueNode, value) {
@@ -398,7 +407,7 @@
     renderDriveMeters();
   }
 
-  function updateTankVisuals() {
+  function updateTankVisuals(claimSource) {
     const left = $('leftSlider');
     const right = $('rightSlider');
     const leftFill = $('leftFill');
@@ -423,7 +432,7 @@
 
     syncTankControlsFromDrive();
     renderDriveMeters();
-    sendControl();
+    sendControl(true, claimSource !== false);
   }
 
   function applyJoystickTarget(x, y) {
@@ -432,9 +441,20 @@
     state.target.x = nx;
     state.target.y = ny;
     setDriveSides(ny + nx, ny - nx);
+    renderDriveMeters();
+  }
+
+  function applyJoystickCommand(x, y) {
+    const nx = clamp(x, -1, 1);
+    const ny = clamp(y, -1, 1);
     state.steerUs = normToUs(nx);
     state.throttleUs = normToUs(ny);
-    renderDriveMeters();
+  }
+
+  function activateWebControl() {
+    if (state.source !== 'web') {
+      setSource('web');
+    }
   }
 
   function send(payload) {
@@ -443,14 +463,18 @@
     }
   }
 
-  function sendControl() {
+  function sendControl(force, claimSource) {
     const now = performance.now();
-    if (now - state.lastSendAt < 16) return;
+    if (!force && now - state.lastSendAt < 16) return;
     state.lastSendAt = now;
 
+    if (claimSource !== false) {
+      activateWebControl();
+    }
     const payload = {
       type: 'control',
       mode: state.mode,
+      claimSource: claimSource !== false,
       steeringUs: Math.round(state.steerUs),
       throttleUs: Math.round(state.throttleUs),
     };
@@ -470,8 +494,14 @@
 
     state.current.x = lerp(state.current.x, state.target.x, state.smoothing);
     state.current.y = lerp(state.current.y, state.target.y, state.smoothing);
+    if (Math.abs(state.current.x) < 0.002) state.current.x = 0;
+    if (Math.abs(state.current.y) < 0.002) state.current.y = 0;
+    applyJoystickCommand(state.current.x, state.current.y);
     positionThumb(state.current.x, state.current.y);
-    sendControl();
+    const keyboardActive = state.keys.up || state.keys.down || state.keys.left || state.keys.right;
+    if (state.source === 'web' || state.activePointer !== null || keyboardActive) {
+      sendControl(false, state.activePointer !== null || keyboardActive);
+    }
     requestAnimationFrame(animateJoystick);
   }
 
@@ -638,6 +668,8 @@
         state.current = { x: 0, y: 0 };
         state.steerUs = 1500;
         state.throttleUs = 1500;
+        state.throttleLeft = 0;
+        state.throttleRight = 0;
         const left = $('leftSlider');
         const right = $('rightSlider');
         if (left) left.value = '0';
@@ -645,6 +677,7 @@
         updateTankVisuals();
         positionThumb(0, 0);
         send({ type: 'neutral' });
+        sendControl(true);
       });
     }
 
@@ -675,6 +708,10 @@
         if (state.activePointer !== event.pointerId) return;
         state.activePointer = null;
         applyJoystickTarget(0, 0);
+        state.current = { x: 0, y: 0 };
+        applyJoystickCommand(0, 0);
+        positionThumb(0, 0);
+        sendControl(true);
         setHint('');
       };
 
@@ -683,6 +720,10 @@
       joystickArea.addEventListener('lostpointercapture', () => {
         state.activePointer = null;
         applyJoystickTarget(0, 0);
+        state.current = { x: 0, y: 0 };
+        applyJoystickCommand(0, 0);
+        positionThumb(0, 0);
+        sendControl(true);
       });
     }
 
@@ -746,6 +787,25 @@
       if (!key) return;
       state.keys[key] = false;
       updateKeyboardTarget();
+      if (!state.keys.up && !state.keys.down && !state.keys.left && !state.keys.right) {
+        state.current = { x: 0, y: 0 };
+        applyJoystickCommand(0, 0);
+        positionThumb(0, 0);
+        sendControl(true);
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      state.keys = { up: false, down: false, left: false, right: false };
+      state.activePointer = null;
+      state.target = { x: 0, y: 0 };
+      state.current = { x: 0, y: 0 };
+      state.throttleLeft = 0;
+      state.throttleRight = 0;
+      applyJoystickCommand(0, 0);
+      syncTankControlsFromDrive();
+      positionThumb(0, 0);
+      sendControl(true, state.source === 'web');
     });
 
     const handedSeg = $('handedSeg');
@@ -812,7 +872,7 @@
       const websocketState = $('websocketState');
       if (websocketState) websocketState.textContent = 'Connected';
       send({ type: 'source', source: state.source });
-      sendControl();
+      sendControl(false, false);
     };
 
     socket.onclose = () => {
@@ -897,7 +957,7 @@
     if (isPreview) {
       syncPreviewValues();
       seedPreviewTelemetry();
-      updateTankVisuals();
+      updateTankVisuals(false);
       requestAnimationFrame(animateJoystick);
       return;
     }
@@ -906,7 +966,7 @@
       setTheme(localStorage.getItem('navvy-theme') || 'dark');
       loadInfo();
       connectWebSocket();
-      updateTankVisuals();
+      updateTankVisuals(false);
       requestAnimationFrame(animateJoystick);
     });
   }

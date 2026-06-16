@@ -47,6 +47,7 @@ struct WebCommand {
   int driveLeftUs = 1500;
   int driveRightUs = 1500;
   ControlMode mode = ControlMode::Joystick;
+  bool claimSource = true;
   bool connected = false;
 };
 
@@ -70,6 +71,7 @@ class ControlLogic {
   bool webControlFresh(uint32_t nowMs) const;
   bool webControlEngaged(uint32_t nowMs) const;
   void updateRcNeutralCalibration(const RcInputState &rcState, uint32_t nowMs) const;
+  int smoothOutputUs(int previousUs, int targetUs) const;
   int clampUs(int pulseUs) const;
 
   AppConfig config_;
@@ -86,10 +88,13 @@ class ControlLogic {
   mutable int rcNeutralCh1Us_ = 1500;
   mutable int rcNeutralCh2Us_ = 1500;
   mutable bool rcNeutralCaptured_ = false;
+  mutable bool rcCalibrationComplete_ = false;
   mutable uint32_t rcCalibrationStartedMs_ = 0;
   mutable uint16_t rcCalibrationSamples_ = 0;
   mutable int32_t rcCalibrationSumCh1_ = 0;
   mutable int32_t rcCalibrationSumCh2_ = 0;
+  mutable int smoothedDriveLeftUs_ = 1500;
+  mutable int smoothedDriveRightUs_ = 1500;
 };
 
 }  // namespace navvy

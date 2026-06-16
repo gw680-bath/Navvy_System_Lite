@@ -751,6 +751,7 @@ void NavvyWebServer::handleWebSocketEvent(uint8_t clientId, WStype_t type, uint8
         command.disarmRequest = true;
       } else if (strcmp(typeName, "control") == 0) {
         command.hasControl = true;
+        command.claimSource = doc["claimSource"] | true;
         command.steeringUs = doc["steeringUs"] | 1500;
         command.throttleUs = doc["throttleUs"] | 1500;
         if (doc.containsKey("driveLeftUs") && doc.containsKey("driveRightUs")) {
@@ -760,6 +761,14 @@ void NavvyWebServer::handleWebSocketEvent(uint8_t clientId, WStype_t type, uint8
         }
         const char *modeName = doc["mode"] | "joystick";
         command.mode = (strcmp(modeName, "tank") == 0) ? ControlMode::Tank : ControlMode::Joystick;
+      } else if (strcmp(typeName, "neutral") == 0) {
+        command.hasControl = true;
+        command.claimSource = true;
+        command.steeringUs = 1500;
+        command.throttleUs = 1500;
+        command.hasDrive = true;
+        command.driveLeftUs = 1500;
+        command.driveRightUs = 1500;
       }
 
       queueCommand(command);

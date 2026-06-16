@@ -5,6 +5,8 @@ namespace navvy {
 namespace {
 constexpr int kOutputDeadzoneUs = 10;
 constexpr int kEngagementThresholdUs = 10;
+constexpr uint8_t kOutputSmoothingPreviousWeight = 3;
+constexpr uint8_t kOutputSmoothingTargetWeight = 1;
 
 float usToNorm(int pulseUs, int neutralUs, const AppConfig &config) {
   const int positiveSpan = config.maxUs - neutralUs;
@@ -70,7 +72,8 @@ void ControlLogic::begin(const AppConfig &config) {
   webDriveRightUs_ = config_.neutralUs;
   rcNeutralCh1Us_ = config_.neutralUs;
   rcNeutralCh2Us_ = config_.neutralUs;
-  rcNeutralCaptured_ = false;
+  rcNeutralCaptured_ = true;
+  rcCalibrationComplete_ = true;
   webMode_ = ControlMode::Joystick;
   webConnected_ = false;
   lastWebUpdateMs_ = 0;
@@ -79,6 +82,8 @@ void ControlLogic::begin(const AppConfig &config) {
   rcCalibrationSamples_ = 0;
   rcCalibrationSumCh1_ = 0;
   rcCalibrationSumCh2_ = 0;
+  smoothedDriveLeftUs_ = config_.neutralUs;
+  smoothedDriveRightUs_ = config_.neutralUs;
 }
 
 bool ControlLogic::isNeutral(int pulseUs) const {
@@ -86,10 +91,23 @@ bool ControlLogic::isNeutral(int pulseUs) const {
 }
 
 int ControlLogic::clampUs(int pulseUs) const {
-  if (pulseUs < config_.minUs || pulseUs > config_.maxUs) {
-    return config_.neutralUs;
+  if (pulseUs < config_.minUs) {
+    return config_.minUs;
+  }
+  if (pulseUs > config_.maxUs) {
+    return config_.maxUs;
   }
   return pulseUs;
+}
+
+int ControlLogic::smoothOutputUs(int previousUs, int targetUs) const {
+  if (targetUs == config_.neutralUs) {
+    return config_.neutralUs;
+  }
+
+  const int totalWeight = kOutputSmoothingPreviousWeight + kOutputSmoothingTargetWeight;
+  return ((previousUs * kOutputSmoothingPreviousWeight) + (targetUs * kOutputSmoothingTargetWeight)
+      + (totalWeight / 2)) / totalWeight;
 }
 
 bool ControlLogic::webControlFresh(uint32_t nowMs) const {
@@ -105,7 +123,7 @@ void ControlLogic::updateRcNeutralCalibration(const RcInputState &rcState, uint3
   constexpr uint16_t kCalibrationSamplesTarget = 48;
   constexpr int kCalibrationMaxDeviationUs = 220;
 
-  if (!rcState.signalValid) {
+  if (rcCalibrationComplete_ || !rcState.signalValid) {
     return;
   }
 
@@ -121,16 +139,21 @@ void ControlLogic::updateRcNeutralCalibration(const RcInputState &rcState, uint3
     rcCalibrationSumCh1_ += rcState.ch1Us;
     rcCalibrationSumCh2_ += rcState.ch2Us;
     rcCalibrationSamples_++;
-    rcNeutralCh1Us_ = static_cast<int>(rcCalibrationSumCh1_ / rcCalibrationSamples_);
-    rcNeutralCh2Us_ = static_cast<int>(rcCalibrationSumCh2_ / rcCalibrationSamples_);
-    rcNeutralCaptured_ = true;
-    return;
   }
 
-  if (!rcNeutralCaptured_) {
+  if (rcCalibrationSamples_ >= kCalibrationSamplesTarget || !insideWindow) {
+    if (rcCalibrationSamples_ > 0) {
+      rcNeutralCh1Us_ = static_cast<int>(rcCalibrationSumCh1_ / rcCalibrationSamples_);
+      rcNeutralCh2Us_ = static_cast<int>(rcCalibrationSumCh2_ / rcCalibrationSamples_);
+    } else {
+      rcNeutralCh1Us_ = config_.neutralUs;
+      rcNeutralCh2Us_ = config_.neutralUs;
+    }
+    rcNeutralCaptured_ = true;
+    rcCalibrationComplete_ = true;
+  } else if (!rcNeutralCaptured_) {
     rcNeutralCh1Us_ = config_.neutralUs;
     rcNeutralCh2Us_ = config_.neutralUs;
-    rcNeutralCaptured_ = true;
   }
 }
 
@@ -140,6 +163,9 @@ void ControlLogic::applyWebCommand(const WebCommand &command, uint32_t nowMs) {
   }
 
   if (command.hasControl) {
+    if (command.claimSource) {
+      requestedSource_ = ControlSource::Web;
+    }
     webSteeringUs_ = clampUs(command.steeringUs);
     webThrottleUs_ = clampUs(command.throttleUs);
     webMode_ = command.mode;
@@ -174,7 +200,6 @@ void ControlLogic::applyWebCommand(const WebCommand &command, uint32_t nowMs) {
 
   if (command.connected) {
     webConnected_ = true;
-    lastWebUpdateMs_ = nowMs;
   } else if (command.disarmRequest) {
     webConnected_ = false;
   }
@@ -204,13 +229,12 @@ ControlOutput ControlLogic::resolve(const RcInputState &rcState, uint32_t nowMs)
   int sourceDriveRightUs = config_.neutralUs;
   ControlSource source = ControlSource::Failsafe;
 
-  if (rcState.signalValid) {
+  if (!rcCalibrationComplete_ && rcState.signalValid) {
     updateRcNeutralCalibration(rcState, nowMs);
   }
 
-  const bool rcActive = rcState.signalValid;
-  const bool webActive = webControlFresh(nowMs)
-      && (webControlEngaged(nowMs) || requestedSource_ == ControlSource::Web);
+  const bool rcActive = rcState.signalValid && rcNeutralCaptured_;
+  const bool webActive = webControlFresh(nowMs);
 
   if (webActive) {
     source = ControlSource::Web;
@@ -242,6 +266,8 @@ ControlOutput ControlLogic::resolve(const RcInputState &rcState, uint32_t nowMs)
   if (!armed_ || source == ControlSource::Failsafe) {
     output.steeringUs = config_.neutralUs;
     output.throttleUs = config_.neutralUs;
+    smoothedDriveLeftUs_ = config_.neutralUs;
+    smoothedDriveRightUs_ = config_.neutralUs;
     output.driveLeftUs = 0;
     output.driveRightUs = 0;
     return output;
@@ -256,8 +282,10 @@ ControlOutput ControlLogic::resolve(const RcInputState &rcState, uint32_t nowMs)
 
   output.steeringUs = sourceSteeringUs;
   output.throttleUs = sourceThrottleUs;
-  output.driveLeftUs = sourceDriveLeftUs;
-  output.driveRightUs = sourceDriveRightUs;
+  smoothedDriveLeftUs_ = smoothOutputUs(smoothedDriveLeftUs_, sourceDriveLeftUs);
+  smoothedDriveRightUs_ = smoothOutputUs(smoothedDriveRightUs_, sourceDriveRightUs);
+  output.driveLeftUs = sourceDriveLeftUs == config_.neutralUs ? 0 : smoothedDriveLeftUs_;
+  output.driveRightUs = sourceDriveRightUs == config_.neutralUs ? 0 : smoothedDriveRightUs_;
   return output;
 }
 
